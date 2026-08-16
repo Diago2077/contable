@@ -83,15 +83,20 @@ export function FacturaDetalleModal({
           {/* Archivo: imagen con zoom, o link si es PDF */}
           <div className="lg:w-64 lg:shrink-0">
             {esImagen && urlArchivo ? (
-              <button
-                onClick={() => setLightboxAbierto(true)}
-                className="group relative block w-full overflow-hidden rounded-md border border-border"
-              >
-                <img src={urlArchivo} alt={factura.archivo_nombre ?? ''} className="w-full object-cover" />
-                <span className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/30">
-                  <ZoomIn className="size-6 text-white opacity-0 transition-opacity group-hover:opacity-100" />
-                </span>
-              </button>
+              <div className="space-y-2">
+                <button
+                  onClick={() => setLightboxAbierto(true)}
+                  className="group relative block w-full overflow-hidden rounded-md border border-border"
+                >
+                  <img src={urlArchivo} alt={factura.archivo_nombre ?? ''} className="w-full object-cover" />
+                  <span className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/30">
+                    <ZoomIn className="size-6 text-white opacity-0 transition-opacity group-hover:opacity-100" />
+                  </span>
+                </button>
+                <Button variant="outline" className="w-full" onClick={() => setLightboxAbierto(true)}>
+                  <ZoomIn /> Ver factura completa
+                </Button>
+              </div>
             ) : factura.archivo_path ? (
               <a
                 href={urlArchivo ?? undefined}
