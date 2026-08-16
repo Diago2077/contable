@@ -49,22 +49,24 @@ export default function Inicio() {
       ]
 
   // Un usuario raso solo trabaja con contribuyentes/facturas: la gestion de
-  // usuarios y los datos del estudio son cosa de quien lo administra.
+  // usuarios es cosa de quien administra el estudio.
   if (perfil?.rol !== 'usuario') {
-    modulos.push(
-      {
-        to: '/usuarios',
-        titulo: 'Usuarios',
-        descripcion: 'Quienes tienen acceso al estudio.',
-        icono: Users,
-      },
-      {
-        to: '/empresa',
-        titulo: 'Mi estudio',
-        descripcion: 'Datos de la empresa.',
-        icono: Building2,
-      },
-    )
+    modulos.push({
+      to: '/usuarios',
+      titulo: 'Usuarios',
+      descripcion: 'Quienes tienen acceso al estudio.',
+      icono: Users,
+    })
+  }
+
+  // "Mi estudio" tampoco es para el super_admin: no tiene uno propio.
+  if (!esSuperAdmin) {
+    modulos.push({
+      to: '/empresa',
+      titulo: 'Mi estudio',
+      descripcion: 'Datos de la empresa.',
+      icono: Building2,
+    })
   }
 
   if (esSuperAdmin) {

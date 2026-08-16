@@ -38,9 +38,9 @@ export default function App() {
               </Suspense>
             }
           />
+          <Route path="empresa" element={<Empresa />} />
         </Route>
         <Route path="usuarios" element={<Usuarios />} />
-        <Route path="empresa" element={<Empresa />} />
       </Route>
 
       <Route path="/admindrpcs" element={<SuperAdminLayout />}>
