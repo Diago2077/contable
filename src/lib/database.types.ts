@@ -20,6 +20,20 @@ export interface Empresa {
   direccion: string | null
   logo_url: string | null
   activo: boolean
+  /** null = sin limite. Al superarlo en el mes, api/extraer.ts corta la extraccion por IA. */
+  limite_tokens_mensual: number | null
+  created_at: string
+}
+
+/** Un registro por cada llamada a la IA que efectivamente proceso una factura. */
+export interface UsoIA {
+  id: string
+  empresa_id: string
+  contribuyente_id: string | null
+  tokens_prompt: number
+  tokens_completion: number
+  tokens_total: number
+  costo_usd: number
   created_at: string
 }
 

@@ -18,6 +18,7 @@ const EMPRESA_VACIA: EmpresaInsert = {
   direccion: '',
   logo_url: null,
   activo: true,
+  limite_tokens_mensual: null,
 }
 
 export default function Empresas() {

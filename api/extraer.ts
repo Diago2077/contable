@@ -17,6 +17,12 @@ import { conManejoDeErrores, error, exigeMetodo, leerBody, type ApiHandler } fro
 const MODELO = 'gpt-4o'
 const MAX_TOKENS = 2500
 
+// Precio de gpt-4o por millon de tokens (USD). Aproximado -- sirve para
+// tener una nocion de gasto por estudio, no para facturar con precision.
+// Si OpenAI cambia el precio del modelo, hay que actualizar esto a mano.
+const PRECIO_INPUT_POR_1M = 5
+const PRECIO_OUTPUT_POR_1M = 15
+
 interface Body {
   contribuyente_id?: string
   imagen_base64?: string
@@ -155,6 +161,33 @@ const handler: ApiHandler = async (req, res) => {
     return error(res, 403, 'Ese contribuyente no pertenece a tu estudio.')
   }
 
+  const { data: empresa } = await admin
+    .from('empresas')
+    .select('limite_tokens_mensual')
+    .eq('id', contribuyente.empresa_id)
+    .maybeSingle()
+
+  if (empresa?.limite_tokens_mensual != null) {
+    const inicioMes = new Date()
+    inicioMes.setUTCDate(1)
+    inicioMes.setUTCHours(0, 0, 0, 0)
+
+    const { data: usoMes } = await admin
+      .from('uso_ia')
+      .select('tokens_total')
+      .eq('empresa_id', contribuyente.empresa_id)
+      .gte('created_at', inicioMes.toISOString())
+
+    const tokensUsados = (usoMes ?? []).reduce((acc, u) => acc + u.tokens_total, 0)
+    if (tokensUsados >= empresa.limite_tokens_mensual) {
+      return error(
+        res,
+        429,
+        'Este estudio alcanzo su limite mensual de extraccion por IA. Contactate con el administrador del sistema.',
+      )
+    }
+  }
+
   const { data: planCuentas } = await admin
     .from('plan_cuentas')
     .select('id, codigo, descripcion')
@@ -202,9 +235,31 @@ const handler: ApiHandler = async (req, res) => {
 
     const json = (await respuesta.json()) as {
       choices?: Array<{ message?: { content?: string } }>
+      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
     }
     const contenido = json.choices?.[0]?.message?.content
     if (!contenido) return error(res, 502, 'La IA no devolvio ningun resultado.')
+
+    const tokensPrompt = json.usage?.prompt_tokens ?? 0
+    const tokensCompletion = json.usage?.completion_tokens ?? 0
+    const tokensTotal = json.usage?.total_tokens ?? tokensPrompt + tokensCompletion
+    const costoUsd = (tokensPrompt * PRECIO_INPUT_POR_1M + tokensCompletion * PRECIO_OUTPUT_POR_1M) / 1_000_000
+
+    // No bloquea la respuesta si falla: el registro de consumo es secundario
+    // frente a devolverle la extraccion al usuario que esta esperando.
+    admin
+      .from('uso_ia')
+      .insert({
+        empresa_id: contribuyente.empresa_id,
+        contribuyente_id: contribuyente.id,
+        tokens_prompt: tokensPrompt,
+        tokens_completion: tokensCompletion,
+        tokens_total: tokensTotal,
+        costo_usd: costoUsd,
+      })
+      .then(({ error: errUso }) => {
+        if (errUso) console.error('No se pudo registrar el uso de IA', errUso)
+      })
 
     const datos = JSON.parse(contenido)
     res.status(200).json({ ok: true, datos })

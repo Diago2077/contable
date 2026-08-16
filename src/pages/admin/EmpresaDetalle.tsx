@@ -1,6 +1,7 @@
 import { ArrowLeft, KeyRound, Pencil, Plus, Trash2, UserRound } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { ConsumoIA } from '@/components/admin/ConsumoIA'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Cargando, ErrorBox, Vacio } from '@/components/ui/estado'
@@ -107,6 +108,18 @@ export default function EmpresaDetalle() {
             {empresa.activo ? 'Desactivar estudio' : 'Activar estudio'}
           </Button>
         </div>
+      </div>
+
+      <div className="mb-6">
+        <ConsumoIA
+          empresaId={empresa.id}
+          limiteTokensMensual={empresa.limite_tokens_mensual}
+          onCambiarLimite={async (limite) => {
+            const { error: err } = await actualizarEmpresa(empresa.id, { limite_tokens_mensual: limite })
+            if (!err) setEmpresa({ ...empresa, limite_tokens_mensual: limite })
+            return { error: err }
+          }}
+        />
       </div>
 
       <div className="mb-4 flex items-center justify-between">
