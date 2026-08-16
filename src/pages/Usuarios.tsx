@@ -1,5 +1,6 @@
-import { KeyRound, Pencil, Plus, Trash2, UserRound } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { KeyRound, Pencil, Plus, Search, Trash2, UserRound } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -9,7 +10,7 @@ import { ConfirmModal, Modal } from '@/components/ui/modal'
 import { useAuth } from '@/hooks/useAuth'
 import { useUsuarios } from '@/hooks/useUsuarios'
 import type { Usuario } from '@/lib/database.types'
-import { formatFecha } from '@/lib/format'
+import { formatFecha, normalizar } from '@/lib/format'
 
 const ROL_LABEL: Record<Usuario['rol'], string> = {
   super_admin: 'Super admin',
@@ -19,16 +20,34 @@ const ROL_LABEL: Record<Usuario['rol'], string> = {
 
 export default function Usuarios() {
   const { perfil, empresa } = useAuth()
+  const navigate = useNavigate()
+
+  // Ver quien tiene acceso al estudio es cosa de quien lo administra: un
+  // usuario raso ni entra a esta pantalla (la RLS tampoco le deja leer la
+  // lista, esto solo evita que se quede mirando una pantalla vacia/rota).
+  useEffect(() => {
+    if (perfil && perfil.rol === 'usuario') navigate('/', { replace: true })
+  }, [perfil, navigate])
+
   const { data, loading, error, refetch, crear, editar, eliminar, cambiarPassword, setActivo } = useUsuarios(
     empresa?.id,
   )
   const puedeGestionar = perfil?.rol === 'admin'
+  const [busqueda, setBusqueda] = useState('')
+
+  const filtrados = useMemo(() => {
+    const q = normalizar(busqueda)
+    if (!q) return data
+    return data.filter((u) => normalizar(u.nombre).includes(q) || normalizar(u.email).includes(q))
+  }, [data, busqueda])
 
   const [modalNuevo, setModalNuevo] = useState(false)
   const [modalDetalle, setModalDetalle] = useState<Usuario | null>(null)
   const [modalEditar, setModalEditar] = useState<Usuario | null>(null)
   const [modalPassword, setModalPassword] = useState<Usuario | null>(null)
   const [modalEliminar, setModalEliminar] = useState<Usuario | null>(null)
+
+  if (perfil?.rol === 'usuario') return null
 
   return (
     <div>
@@ -48,12 +67,26 @@ export default function Usuarios() {
         )}
       </div>
 
+      {data.length > 0 && (
+        <div className="relative mb-4 max-w-sm">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="pl-9"
+            placeholder="Buscar por nombre o email…"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+          />
+        </div>
+      )}
+
       {loading ? (
         <Cargando />
       ) : error ? (
         <ErrorBox mensaje={error} />
       ) : data.length === 0 ? (
         <Vacio icono={UserRound} titulo="Sin usuarios" />
+      ) : filtrados.length === 0 ? (
+        <Vacio icono={UserRound} titulo="Sin resultados" descripcion="Probá con otra busqueda." />
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border bg-card">
           <table className="w-full text-sm">
@@ -66,7 +99,7 @@ export default function Usuarios() {
               </tr>
             </thead>
             <tbody>
-              {data.map((u) => {
+              {filtrados.map((u) => {
                 // Un admin solo puede administrar usuarios 'usuario': a otro
                 // admin (o a si mismo) lo ve, pero la fila no abre el detalle.
                 const clickeable = puedeGestionar && u.rol === 'usuario'

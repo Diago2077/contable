@@ -6,15 +6,20 @@ import { Cargando } from '@/components/ui/estado'
 import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
 
-const NAV = [
+const NAV_BASE = [
   { to: '/', label: 'Inicio', end: true },
   { to: '/contribuyentes', label: 'Contribuyentes', end: false },
-  { to: '/usuarios', label: 'Usuarios', end: false },
 ]
+
+const NAV_USUARIOS = { to: '/usuarios', label: 'Usuarios', end: false }
 
 export default function AppLayout() {
   const { user, perfil, empresa, loading, esSuperAdmin, problemaPerfil, signOut } = useAuth()
   const navigate = useNavigate()
+
+  // Gestionar usuarios es cosa de quien administra el estudio: un usuario
+  // raso ni ve el link ni tiene acceso a esos datos (la RLS tambien lo corta).
+  const NAV = perfil?.rol === 'usuario' ? NAV_BASE : [...NAV_BASE, NAV_USUARIOS]
 
   useEffect(() => {
     if (!loading && !user) navigate('/login', { replace: true })
