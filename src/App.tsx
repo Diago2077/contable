@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import AppLayout from '@/components/layout/AppLayout'
+import RequiereEstudio from '@/components/layout/RequiereEstudio'
 import SuperAdminLayout from '@/components/layout/SuperAdminLayout'
 import { Cargando } from '@/components/ui/estado'
 import Contribuyentes from '@/pages/Contribuyentes'
@@ -24,18 +25,20 @@ export default function App() {
 
       <Route path="/" element={<AppLayout />}>
         <Route index element={<Inicio />} />
-        <Route path="contribuyentes" element={<Contribuyentes />} />
-        <Route path="contribuyentes/:id" element={<ContribuyenteDetalle />} />
-        {/* El listado ahora vive como pestana dentro de la ficha del contribuyente */}
-        <Route path="contribuyentes/:id/facturas" element={<Navigate to=".." replace />} />
-        <Route
-          path="contribuyentes/:id/facturas/cargar"
-          element={
-            <Suspense fallback={<Cargando texto="Cargando…" />}>
-              <CargarFacturas />
-            </Suspense>
-          }
-        />
+        <Route element={<RequiereEstudio />}>
+          <Route path="contribuyentes" element={<Contribuyentes />} />
+          <Route path="contribuyentes/:id" element={<ContribuyenteDetalle />} />
+          {/* El listado ahora vive como pestana dentro de la ficha del contribuyente */}
+          <Route path="contribuyentes/:id/facturas" element={<Navigate to=".." replace />} />
+          <Route
+            path="contribuyentes/:id/facturas/cargar"
+            element={
+              <Suspense fallback={<Cargando texto="Cargando…" />}>
+                <CargarFacturas />
+              </Suspense>
+            }
+          />
+        </Route>
         <Route path="usuarios" element={<Usuarios />} />
         <Route path="empresa" element={<Empresa />} />
       </Route>

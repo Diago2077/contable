@@ -34,15 +34,19 @@ export default function Inicio() {
     }
   }, [])
 
-  const modulos: Modulo[] = [
-    {
-      to: '/contribuyentes',
-      titulo: 'Contribuyentes',
-      descripcion: 'Alta y gestion de los clientes del estudio. Desde aca se entra a sus facturas y a su plan de cuentas.',
-      icono: FileText,
-      destacado: true,
-    },
-  ]
+  // Contribuyentes/facturas son del estudio: el super_admin no tiene uno
+  // propio (la RLS le mostraria los de todos los estudios mezclados).
+  const modulos: Modulo[] = esSuperAdmin
+    ? []
+    : [
+        {
+          to: '/contribuyentes',
+          titulo: 'Contribuyentes',
+          descripcion: 'Alta y gestion de los clientes del estudio. Desde aca se entra a sus facturas y a su plan de cuentas.',
+          icono: FileText,
+          destacado: true,
+        },
+      ]
 
   // Un usuario raso solo trabaja con contribuyentes/facturas: la gestion de
   // usuarios y los datos del estudio son cosa de quien lo administra.

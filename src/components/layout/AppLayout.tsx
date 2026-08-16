@@ -6,20 +6,23 @@ import { Cargando } from '@/components/ui/estado'
 import { useAuth } from '@/hooks/useAuth'
 import { cn } from '@/lib/utils'
 
-const NAV_BASE = [
-  { to: '/', label: 'Inicio', end: true },
-  { to: '/contribuyentes', label: 'Contribuyentes', end: false },
-]
-
+const NAV_INICIO = { to: '/', label: 'Inicio', end: true }
+const NAV_CONTRIBUYENTES = { to: '/contribuyentes', label: 'Contribuyentes', end: false }
 const NAV_USUARIOS = { to: '/usuarios', label: 'Usuarios', end: false }
 
 export default function AppLayout() {
   const { user, perfil, empresa, loading, esSuperAdmin, problemaPerfil, signOut } = useAuth()
   const navigate = useNavigate()
 
+  // Contribuyentes/facturas son del estudio: el super_admin no tiene uno
+  // (velos todos mezclados no tiene sentido, para eso esta /admindrpcs).
   // Gestionar usuarios es cosa de quien administra el estudio: un usuario
   // raso ni ve el link ni tiene acceso a esos datos (la RLS tambien lo corta).
-  const NAV = perfil?.rol === 'usuario' ? NAV_BASE : [...NAV_BASE, NAV_USUARIOS]
+  const NAV = [
+    NAV_INICIO,
+    ...(esSuperAdmin ? [] : [NAV_CONTRIBUYENTES]),
+    ...(perfil?.rol === 'usuario' ? [] : [NAV_USUARIOS]),
+  ]
 
   useEffect(() => {
     if (!loading && !user) navigate('/login', { replace: true })
