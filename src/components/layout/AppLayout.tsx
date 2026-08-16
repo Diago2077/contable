@@ -1,6 +1,7 @@
-import { LogOut, ShieldCheck } from 'lucide-react'
-import { useEffect } from 'react'
+import { KeyRound, LogOut, ShieldCheck } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { CambiarMiPasswordModal } from '@/components/cuenta/CambiarMiPasswordModal'
 import { Button } from '@/components/ui/button'
 import { Cargando } from '@/components/ui/estado'
 import { useAuth } from '@/hooks/useAuth'
@@ -13,6 +14,7 @@ const NAV_USUARIOS = { to: '/usuarios', label: 'Usuarios', end: false }
 export default function AppLayout() {
   const { user, perfil, empresa, loading, esSuperAdmin, problemaPerfil, signOut } = useAuth()
   const navigate = useNavigate()
+  const [modalPassword, setModalPassword] = useState(false)
 
   // Contribuyentes/facturas son del estudio: el super_admin no tiene uno
   // (velos todos mezclados no tiene sentido, para eso esta /admindrpcs).
@@ -104,6 +106,9 @@ export default function AppLayout() {
               <p className="text-xs font-medium text-foreground">{perfil?.nombre}</p>
               <p className="text-[11px] text-muted-foreground">{perfil?.email}</p>
             </div>
+            <Button variant="ghost" size="icon" onClick={() => setModalPassword(true)} title="Cambiar mi contrasena">
+              <KeyRound />
+            </Button>
             <Button variant="ghost" size="icon" onClick={signOut} title="Cerrar sesion">
               <LogOut />
             </Button>
@@ -135,6 +140,8 @@ export default function AppLayout() {
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
         <Outlet />
       </main>
+
+      <CambiarMiPasswordModal abierto={modalPassword} onCerrar={() => setModalPassword(false)} />
     </div>
   )
 }

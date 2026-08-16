@@ -1,6 +1,7 @@
-import { ArrowLeft, Building2, LogOut, ShieldCheck } from 'lucide-react'
-import { useEffect } from 'react'
+import { ArrowLeft, Building2, KeyRound, LogOut, ShieldCheck } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { CambiarMiPasswordModal } from '@/components/cuenta/CambiarMiPasswordModal'
 import { Button } from '@/components/ui/button'
 import { Cargando } from '@/components/ui/estado'
 import { useAuth } from '@/hooks/useAuth'
@@ -13,6 +14,7 @@ const NAV = [
 export default function SuperAdminLayout() {
   const { user, perfil, loading, esSuperAdmin, signOut } = useAuth()
   const navigate = useNavigate()
+  const [modalPassword, setModalPassword] = useState(false)
 
   useEffect(() => {
     if (loading) return
@@ -64,6 +66,9 @@ export default function SuperAdminLayout() {
               Volver a la app
             </Link>
             <p className="hidden text-xs font-medium text-foreground sm:block">{perfil?.nombre}</p>
+            <Button variant="ghost" size="icon" onClick={() => setModalPassword(true)} title="Cambiar mi contrasena">
+              <KeyRound />
+            </Button>
             <Button variant="ghost" size="icon" onClick={signOut} title="Cerrar sesion">
               <LogOut />
             </Button>
@@ -74,6 +79,8 @@ export default function SuperAdminLayout() {
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
         <Outlet />
       </main>
+
+      <CambiarMiPasswordModal abierto={modalPassword} onCerrar={() => setModalPassword(false)} />
     </div>
   )
 }
