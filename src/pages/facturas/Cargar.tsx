@@ -1,4 +1,4 @@
-import { AlertCircle, ArrowLeft, CheckCircle2, Loader2, UploadCloud } from 'lucide-react'
+import { AlertCircle, AlertTriangle, ArrowLeft, CheckCircle2, Loader2, UploadCloud } from 'lucide-react'
 import { useRef, useState, type ChangeEvent, type DragEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -32,7 +32,7 @@ export default function CargarFacturas() {
   const { id: contribuyenteId } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { data: contribuyente, loading: cargandoContribuyente } = useContribuyente(contribuyenteId)
-  const { data: planCuentas } = usePlanCuentas(contribuyenteId)
+  const { data: planCuentas, loading: cargandoPlanCuentas } = usePlanCuentas(contribuyenteId)
   const { extraer, guardar } = useFacturaAlta()
 
   const [items, setItems] = useState<ItemLote[]>([])
@@ -152,6 +152,20 @@ export default function CargarFacturas() {
           Subi una o varias facturas: se extraen los datos automaticamente y despues las revisas antes de guardar.
         </p>
       </div>
+
+      {!cargandoPlanCuentas && planCuentas.length === 0 && (
+        <div className="mb-6 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 px-4 py-3 text-sm text-warning">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+          <p>
+            Este contribuyente todavia no tiene plan de cuentas cargado, asi que las facturas no se van a poder
+            categorizar automaticamente.{' '}
+            <Link to={`/contribuyentes/${contribuyenteId}`} className="underline underline-offset-2">
+              Cargalo primero
+            </Link>{' '}
+            si queres que la IA sugiera la categoria.
+          </p>
+        </div>
+      )}
 
       {items.length === 0 && (
         <div

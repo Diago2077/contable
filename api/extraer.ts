@@ -23,6 +23,12 @@ interface Body {
   mime_type?: string
 }
 
+interface CuentaPlan {
+  id: string
+  codigo: string
+  descripcion: string
+}
+
 const ESQUEMA_DETALLE = {
   type: 'object',
   properties: {
@@ -36,54 +42,72 @@ const ESQUEMA_DETALLE = {
   additionalProperties: false,
 } as const
 
-const ESQUEMA_FACTURA = {
-  type: 'object',
-  properties: {
-    tipo_operacion: {
-      type: 'string',
-      enum: ['compra', 'venta'],
-      description:
-        'compra si el RUC del contribuyente aparece como receptor/cliente; venta si aparece como emisor/proveedor',
+function esquemaFactura(planCuentas: CuentaPlan[]) {
+  const idsCuentas = planCuentas.map((c) => c.id)
+  const propiedadPlanCuenta = idsCuentas.length > 0
+    ? {
+        type: ['string', 'null'] as const,
+        enum: [...idsCuentas, null],
+        description:
+          'id de la cuenta del plan de cuentas que mejor clasifica esta factura segun su detalle. Si ninguna es un buen match, elegi la mas parecida igual.',
+      }
+    : { type: 'null' as const, description: 'el contribuyente no tiene plan de cuentas cargado' }
+
+  return {
+    type: 'object',
+    properties: {
+      tipo_operacion: {
+        type: 'string',
+        enum: ['compra', 'venta'],
+        description:
+          'compra si el RUC del contribuyente aparece como receptor/cliente; venta si aparece como emisor/proveedor',
+      },
+      numero_factura: { type: ['string', 'null'] },
+      fecha_factura: { type: ['string', 'null'], description: 'formato DD/MM/AAAA tal como figura en la factura' },
+      timbrado: { type: ['string', 'null'] },
+      timbrado_vencimiento: { type: ['string', 'null'], description: 'formato DD/MM/AAAA' },
+      condicion_venta: { type: ['string', 'null'], enum: ['contado', 'credito', null] },
+
+      proveedor_nombre: { type: ['string', 'null'] },
+      proveedor_ruc: { type: ['string', 'null'] },
+      proveedor_direccion: { type: ['string', 'null'] },
+      cliente_nombre: { type: ['string', 'null'] },
+      cliente_ruc: { type: ['string', 'null'] },
+      cliente_direccion: { type: ['string', 'null'] },
+
+      moneda: { type: 'string', description: "codigo de 3 letras, por defecto 'PYG'" },
+      tipo_cambio: { type: ['number', 'null'] },
+
+      exentas: { type: 'number', description: 'monto de la columna Exentas, 0 si no tiene' },
+      gravado_5: { type: 'number', description: 'monto de la columna Gravadas 5% (IVA incluido), 0 si no tiene' },
+      iva_5: { type: 'number', description: 'IVA liquidado sobre gravado_5, 0 si no tiene' },
+      gravado_10: { type: 'number', description: 'monto de la columna Gravadas 10% (IVA incluido), 0 si no tiene' },
+      iva_10: { type: 'number', description: 'IVA liquidado sobre gravado_10, 0 si no tiene' },
+      total: { type: 'number', description: 'total de la factura: exentas + gravado_5 + gravado_10' },
+
+      forma_pago: { type: ['string', 'null'] },
+      observaciones: { type: ['string', 'null'] },
+
+      plan_cuenta_id: propiedadPlanCuenta,
+
+      detalles: { type: 'array', items: ESQUEMA_DETALLE, description: 'todas las lineas de detalle que se encuentren' },
     },
-    numero_factura: { type: ['string', 'null'] },
-    fecha_factura: { type: ['string', 'null'], description: 'formato DD/MM/AAAA tal como figura en la factura' },
-    timbrado: { type: ['string', 'null'] },
-    timbrado_vencimiento: { type: ['string', 'null'], description: 'formato DD/MM/AAAA' },
-    condicion_venta: { type: ['string', 'null'], enum: ['contado', 'credito', null] },
+    required: [
+      'tipo_operacion', 'numero_factura', 'fecha_factura', 'timbrado', 'timbrado_vencimiento',
+      'condicion_venta', 'proveedor_nombre', 'proveedor_ruc', 'proveedor_direccion',
+      'cliente_nombre', 'cliente_ruc', 'cliente_direccion', 'moneda', 'tipo_cambio',
+      'exentas', 'gravado_5', 'iva_5', 'gravado_10', 'iva_10', 'total',
+      'forma_pago', 'observaciones', 'plan_cuenta_id', 'detalles',
+    ],
+    additionalProperties: false,
+  } as const
+}
 
-    proveedor_nombre: { type: ['string', 'null'] },
-    proveedor_ruc: { type: ['string', 'null'] },
-    proveedor_direccion: { type: ['string', 'null'] },
-    cliente_nombre: { type: ['string', 'null'] },
-    cliente_ruc: { type: ['string', 'null'] },
-    cliente_direccion: { type: ['string', 'null'] },
+function prompt(rucContribuyente: string, razonSocial: string, planCuentas: CuentaPlan[]): string {
+  const listaCuentas = planCuentas.length > 0
+    ? planCuentas.map((c) => `  - id ${c.id}: ${c.codigo} — ${c.descripcion}`).join('\n')
+    : null
 
-    moneda: { type: 'string', description: "codigo de 3 letras, por defecto 'PYG'" },
-    tipo_cambio: { type: ['number', 'null'] },
-
-    exentas: { type: 'number', description: 'monto de la columna Exentas, 0 si no tiene' },
-    gravado_5: { type: 'number', description: 'monto de la columna Gravadas 5% (IVA incluido), 0 si no tiene' },
-    iva_5: { type: 'number', description: 'IVA liquidado sobre gravado_5, 0 si no tiene' },
-    gravado_10: { type: 'number', description: 'monto de la columna Gravadas 10% (IVA incluido), 0 si no tiene' },
-    iva_10: { type: 'number', description: 'IVA liquidado sobre gravado_10, 0 si no tiene' },
-    total: { type: 'number', description: 'total de la factura: exentas + gravado_5 + gravado_10' },
-
-    forma_pago: { type: ['string', 'null'] },
-    observaciones: { type: ['string', 'null'] },
-
-    detalles: { type: 'array', items: ESQUEMA_DETALLE, description: 'todas las lineas de detalle que se encuentren' },
-  },
-  required: [
-    'tipo_operacion', 'numero_factura', 'fecha_factura', 'timbrado', 'timbrado_vencimiento',
-    'condicion_venta', 'proveedor_nombre', 'proveedor_ruc', 'proveedor_direccion',
-    'cliente_nombre', 'cliente_ruc', 'cliente_direccion', 'moneda', 'tipo_cambio',
-    'exentas', 'gravado_5', 'iva_5', 'gravado_10', 'iva_10', 'total',
-    'forma_pago', 'observaciones', 'detalles',
-  ],
-  additionalProperties: false,
-} as const
-
-function prompt(rucContribuyente: string, razonSocial: string): string {
   return `Sos un asistente que extrae datos de facturas paraguayas (timbradas por la SET) a partir de una imagen.
 
 El contribuyente que esta cargando esta factura es:
@@ -98,7 +122,12 @@ Reglas:
 - Los montos son numeros, sin simbolo de moneda ni separadores de miles.
 - Las fechas van en formato DD/MM/AAAA tal como aparecen en la factura.
 - Extrae TODAS las lineas de detalle que encuentres.
-- No inventes datos que no esten en la imagen.`
+- No inventes datos que no esten en la imagen.
+${
+  listaCuentas
+    ? `\nEste es el plan de cuentas del contribuyente, para categorizar la factura segun el detalle de mercaderias/servicios:\n${listaCuentas}\n\nElegi el id de la cuenta que mejor clasifique la factura en base a lo que se compro o vendio. Si ninguna calza perfecto, elegi la mas parecida de todas formas. Devolve el id exacto tal como aparece en la lista, no el codigo.`
+    : ''
+}`
 }
 
 const handler: ApiHandler = async (req, res) => {
@@ -126,6 +155,13 @@ const handler: ApiHandler = async (req, res) => {
     return error(res, 403, 'Ese contribuyente no pertenece a tu estudio.')
   }
 
+  const { data: planCuentas } = await admin
+    .from('plan_cuentas')
+    .select('id, codigo, descripcion')
+    .eq('contribuyente_id', body.contribuyente_id)
+    .eq('activo', true)
+    .order('codigo', { ascending: true })
+
   const mime = body.mime_type || 'image/png'
 
   try {
@@ -143,7 +179,7 @@ const handler: ApiHandler = async (req, res) => {
           {
             role: 'user',
             content: [
-              { type: 'text', text: prompt(contribuyente.ruc, contribuyente.razon_social) },
+              { type: 'text', text: prompt(contribuyente.ruc, contribuyente.razon_social, planCuentas ?? []) },
               {
                 type: 'image_url',
                 image_url: { url: `data:${mime};base64,${body.imagen_base64}`, detail: 'high' },
@@ -153,7 +189,7 @@ const handler: ApiHandler = async (req, res) => {
         ],
         response_format: {
           type: 'json_schema',
-          json_schema: { name: 'factura', strict: true, schema: ESQUEMA_FACTURA },
+          json_schema: { name: 'factura', strict: true, schema: esquemaFactura(planCuentas ?? []) },
         },
       }),
     })

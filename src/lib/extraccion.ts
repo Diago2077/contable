@@ -25,6 +25,7 @@ export interface ExtraccionIA {
   total: number
   forma_pago: string | null
   observaciones: string | null
+  plan_cuenta_id: string | null
   detalles: Array<{
     descripcion: string | null
     cantidad: number | null
@@ -95,7 +96,7 @@ export function extraccionAFormState(datos: ExtraccionIA): FacturaFormState {
     total: n(datos.total),
     forma_pago: s(datos.forma_pago),
     observaciones: s(datos.observaciones),
-    plan_cuenta_id: '',
+    plan_cuenta_id: s(datos.plan_cuenta_id),
     detalles: (datos.detalles ?? []).map((d) => ({
       descripcion: s(d.descripcion),
       cantidad: n(d.cantidad),
