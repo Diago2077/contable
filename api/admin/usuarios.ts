@@ -1,4 +1,4 @@
-import { clienteAdmin, exigeSuperAdmin } from '../_lib/auth.js'
+import { clienteAdmin, exigeGestorDeUsuarios } from '../_lib/auth.js'
 import { conManejoDeErrores, error, exigeMetodo, leerBody, type ApiHandler } from '../_lib/http.js'
 
 /**
@@ -8,6 +8,13 @@ import { conManejoDeErrores, error, exigeMetodo, leerBody, type ApiHandler } fro
  *
  * Todo lo demas (listar usuarios, activar/desactivar) lo hace el cliente
  * directo contra PostgREST, protegido por la RLS.
+ *
+ * Puede llamar un super_admin (sin restricciones, cualquier estudio y
+ * cualquier rol) o un admin de estudio (solo usuarios 'usuario' de SU
+ * propia empresa: nunca otro admin, nunca otro estudio). El alcance del
+ * admin se fuerza siempre del lado del servidor -- nunca se confia en el
+ * empresa_id/rol que mande el cliente -- para que no pueda ampliarlo
+ * manipulando la request.
  */
 
 const ROLES_PERMITIDOS = ['admin', 'usuario'] as const
@@ -26,11 +33,12 @@ interface Body {
 const handler: ApiHandler = async (req, res) => {
   if (!exigeMetodo(req, res, 'POST')) return
 
-  const actor = await exigeSuperAdmin(req, res)
+  const actor = await exigeGestorDeUsuarios(req, res)
   if (!actor) return
 
   const body = leerBody<Body>(req)
   const admin = clienteAdmin()
+  const esAdminDeEstudio = actor.rol === 'admin'
 
   switch (body.accion) {
     // ─────────────────────────────────────────────────────────
@@ -38,11 +46,14 @@ const handler: ApiHandler = async (req, res) => {
       const nombre = body.nombre?.trim()
       const email = body.email?.trim().toLowerCase()
       const password = body.password ?? ''
-      const rol = body.rol ?? 'usuario'
+      // Un admin solo puede dar de alta usuarios rasos en SU propio estudio:
+      // se ignora cualquier empresa_id/rol que mande el cliente.
+      const empresaId = esAdminDeEstudio ? actor.empresa_id : body.empresa_id
+      const rol = esAdminDeEstudio ? 'usuario' : (body.rol ?? 'usuario')
 
       if (!nombre) return error(res, 400, 'Falta el nombre.')
       if (!email) return error(res, 400, 'Falta el email.')
-      if (!body.empresa_id) return error(res, 400, 'Falta el estudio.')
+      if (!empresaId) return error(res, 400, 'Falta el estudio.')
       if (password.length < LARGO_MINIMO_PASSWORD) {
         return error(res, 400, `La contrasena necesita al menos ${LARGO_MINIMO_PASSWORD} caracteres.`)
       }
@@ -68,7 +79,7 @@ const handler: ApiHandler = async (req, res) => {
 
       const { error: errPerfil } = await admin.from('usuarios').insert({
         id: creado.user.id,
-        empresa_id: body.empresa_id,
+        empresa_id: empresaId,
         nombre,
         email,
         rol,
@@ -90,7 +101,9 @@ const handler: ApiHandler = async (req, res) => {
 
       const nombre = body.nombre?.trim()
       const email = body.email?.trim().toLowerCase()
-      const rol = body.rol ?? 'usuario'
+      // Un admin nunca puede promover a alguien a 'admin': el rol que manda
+      // el cliente se ignora si el que edita es un admin de estudio.
+      const rol = esAdminDeEstudio ? 'usuario' : (body.rol ?? 'usuario')
 
       if (!nombre) return error(res, 400, 'Falta el nombre.')
       if (!email) return error(res, 400, 'Falta el email.')
@@ -100,13 +113,16 @@ const handler: ApiHandler = async (req, res) => {
 
       const { data: objetivo } = await admin
         .from('usuarios')
-        .select('email, rol')
+        .select('email, rol, empresa_id')
         .eq('id', body.id)
         .maybeSingle()
 
       if (!objetivo) return error(res, 404, 'Usuario no encontrado.')
       if (objetivo.rol === 'super_admin') {
         return error(res, 403, 'No se puede editar a un super administrador desde la app.')
+      }
+      if (esAdminDeEstudio && (objetivo.empresa_id !== actor.empresa_id || objetivo.rol !== 'usuario')) {
+        return error(res, 403, 'Solo podes editar usuarios de tu propio estudio.')
       }
 
       // El email de login vive en Auth, no en `usuarios`: si cambio, hay que
@@ -145,12 +161,15 @@ const handler: ApiHandler = async (req, res) => {
 
       const { data: objetivo } = await admin
         .from('usuarios')
-        .select('rol')
+        .select('rol, empresa_id')
         .eq('id', body.id)
         .maybeSingle()
 
       if (objetivo?.rol === 'super_admin') {
         return error(res, 403, 'No se puede eliminar a un super administrador desde la app.')
+      }
+      if (esAdminDeEstudio && (!objetivo || objetivo.empresa_id !== actor.empresa_id || objetivo.rol !== 'usuario')) {
+        return error(res, 403, 'Solo podes eliminar usuarios de tu propio estudio.')
       }
 
       // Borrar de auth.users arrastra la fila de usuarios por el on delete cascade
@@ -167,6 +186,17 @@ const handler: ApiHandler = async (req, res) => {
       const password = body.password ?? ''
       if (password.length < LARGO_MINIMO_PASSWORD) {
         return error(res, 400, `La contrasena necesita al menos ${LARGO_MINIMO_PASSWORD} caracteres.`)
+      }
+
+      if (esAdminDeEstudio) {
+        const { data: objetivo } = await admin
+          .from('usuarios')
+          .select('rol, empresa_id')
+          .eq('id', body.id)
+          .maybeSingle()
+        if (!objetivo || objetivo.empresa_id !== actor.empresa_id || objetivo.rol !== 'usuario') {
+          return error(res, 403, 'Solo podes cambiar la contrasena de usuarios de tu propio estudio.')
+        }
       }
 
       const { error: errUpd } = await admin.auth.admin.updateUserById(body.id, { password })

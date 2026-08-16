@@ -74,6 +74,28 @@ export async function exigeSuperAdmin(
   return perfil
 }
 
+/**
+ * Devuelve el perfil solo si es super_admin o admin (gestion de usuarios).
+ * El alcance de un admin -- que solo pueda tocar su propio estudio y nunca
+ * a otro admin -- se controla en el handler, no aca: aca solo se valida el
+ * rol minimo para llamar al endpoint.
+ */
+export async function exigeGestorDeUsuarios(
+  req: ApiRequest,
+  res: ApiResponse,
+): Promise<PerfilServidor | null> {
+  const perfil = await usuarioAutenticado(req)
+  if (!perfil) {
+    error(res, 401, 'No autenticado.')
+    return null
+  }
+  if (perfil.rol !== 'super_admin' && perfil.rol !== 'admin') {
+    error(res, 403, 'No tenes permiso para esta operacion.')
+    return null
+  }
+  return perfil
+}
+
 /** Devuelve el perfil de cualquier usuario activo; si no, ya respondio. */
 export async function exigeUsuario(
   req: ApiRequest,
