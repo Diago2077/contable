@@ -136,7 +136,6 @@ Reglas:
 - Las fechas van en formato DD/MM/AAAA tal como aparecen en la factura.
 - Extrae TODAS las lineas de detalle que encuentres.
 - No inventes datos que no esten en la imagen.
-- proveedor_nombre, proveedor_ruc, proveedor_direccion, cliente_nombre, cliente_ruc y cliente_direccion se completan SIEMPRE con lo que este impreso en la imagen, tal cual, aunque coincidan exactamente con el RUC o la razon social del contribuyente de arriba. Que ya sepas quien es el contribuyente no es motivo para dejar esos campos vacios o en null: la factura tiene que quedar completa igual.
 ${
   listaCuentas
     ? `\nEste es el plan de cuentas del contribuyente, para categorizar la factura segun el detalle de mercaderias/servicios:\n${listaCuentas}\n\nElegi el indice de la cuenta que mejor clasifique la factura en base a lo que se compro o vendio. Si ninguna calza perfecto, elegi la mas parecida de todas formas. Devolve el numero de indice tal como aparece en la lista, no el codigo de la cuenta.`
