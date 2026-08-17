@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 
 const NAV = [
   { to: '/admindrpcs', label: 'Estudios', end: true },
+  { to: '/admindrpcs/configuracion-ia', label: 'Configuracion de IA', end: true },
 ]
 
 export default function SuperAdminLayout() {

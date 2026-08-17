@@ -37,6 +37,21 @@ export interface UsoIA {
   created_at: string
 }
 
+export type ReasoningEffort = 'none' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+
+/** Fila unica (singleton): que modelo de IA usar y con que parametros, editable por el super_admin. */
+export interface ConfiguracionIA {
+  id: true
+  modelo: string
+  precio_input_por_1m: number
+  precio_output_por_1m: number
+  /** null = no se manda el parametro (modelos que no son gpt-5.x lo ignoran igual). */
+  reasoning_effort: ReasoningEffort | null
+  max_tokens: number
+  updated_at: string
+}
+export type ConfiguracionIAUpdate = Partial<Omit<ConfiguracionIA, 'id' | 'updated_at'>>
+
 export interface Usuario {
   id: string
   empresa_id: string | null

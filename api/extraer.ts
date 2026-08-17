@@ -3,9 +3,9 @@ import { conManejoDeErrores, error, exigeMetodo, leerBody, type ApiHandler } fro
 
 /**
  * Extrae los datos de una factura paraguaya a partir de una imagen, usando
- * GPT-4o Vision con structured outputs (json_schema + strict), asi que la
- * respuesta ya viene tipada -- no hace falta parsear fences markdown como en
- * el sistema viejo.
+ * un modelo de vision de OpenAI (configurable, ver configuracion_ia) con
+ * structured outputs (json_schema + strict), asi que la respuesta ya viene
+ * tipada -- no hace falta parsear fences markdown como en el sistema viejo.
  *
  * El RUC y la razon social del contribuyente se buscan en la base del lado
  * del servidor (nunca se confia en lo que mande el cliente) y se le pasan al
@@ -14,19 +14,17 @@ import { conManejoDeErrores, error, exigeMetodo, leerBody, type ApiHandler } fro
  * el del emisor, es una venta.
  */
 
-// PRUEBA: gpt-5.6-luna en vez de gpt-4o -- lee imagenes igual, sale menos
-// (ver PRECIO_* abajo), pero es un modelo nuevo sin historial probado en
-// facturas reales. Si la calidad de lectura baja, volver a 'gpt-4o' y a
-// $2.5/$10 es el unico cambio que hace falta revertir.
-const MODELO = 'gpt-5.6-luna'
-const MAX_TOKENS = 2500
-
-// Precio por millon de tokens (USD), verificado agosto 2026. Aproximado --
-// sirve para tener una nocion de gasto por estudio, no para facturar con
-// precision. Si OpenAI cambia el precio del modelo, hay que actualizar esto
-// a mano. gpt-4o: $2.5 / $10. gpt-5.6-luna: $1 / $6.
-const PRECIO_INPUT_POR_1M = 1
-const PRECIO_OUTPUT_POR_1M = 6
+// El modelo, los precios y el resto de los parametros de la llamada viven
+// en la tabla configuracion_ia (editable por el super_admin desde
+// /admindrpcs), no hardcodeados aca. Esto es solo el respaldo por si esa
+// fila no existiera por algun motivo (no deberia pasar, la migracion la crea).
+const CONFIG_POR_DEFECTO: { modelo: string; precio_input_por_1m: number; precio_output_por_1m: number; reasoning_effort: string | null; max_tokens: number } = {
+  modelo: 'gpt-4o',
+  precio_input_por_1m: 2.5,
+  precio_output_por_1m: 10,
+  reasoning_effort: null,
+  max_tokens: 2500,
+}
 
 interface Body {
   contribuyente_id?: string
@@ -204,6 +202,9 @@ const handler: ApiHandler = async (req, res) => {
     .eq('activo', true)
     .order('cuenta', { ascending: true })
 
+  const { data: configDb } = await admin.from('configuracion_ia').select('*').eq('id', true).maybeSingle()
+  const config = configDb ?? CONFIG_POR_DEFECTO
+
   const mime = body.mime_type || 'image/png'
 
   try {
@@ -214,13 +215,15 @@ const handler: ApiHandler = async (req, res) => {
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: MODELO,
-        max_tokens: MAX_TOKENS,
+        model: config.modelo,
+        max_tokens: config.max_tokens,
         temperature: 0,
         // gpt-4o no reconoce este parametro; solo se manda para modelos de
         // la familia gpt-5.x, que sí lo soportan (y lo usan aunque no se
         // mande, por defecto en 'medium').
-        ...(MODELO.startsWith('gpt-5') ? { reasoning: { effort: 'low' } } : {}),
+        ...(config.modelo.startsWith('gpt-5') && config.reasoning_effort
+          ? { reasoning: { effort: config.reasoning_effort } }
+          : {}),
         messages: [
           {
             role: 'user',
@@ -256,7 +259,8 @@ const handler: ApiHandler = async (req, res) => {
     const tokensPrompt = json.usage?.prompt_tokens ?? 0
     const tokensCompletion = json.usage?.completion_tokens ?? 0
     const tokensTotal = json.usage?.total_tokens ?? tokensPrompt + tokensCompletion
-    const costoUsd = (tokensPrompt * PRECIO_INPUT_POR_1M + tokensCompletion * PRECIO_OUTPUT_POR_1M) / 1_000_000
+    const costoUsd =
+      (tokensPrompt * config.precio_input_por_1m + tokensCompletion * config.precio_output_por_1m) / 1_000_000
 
     // Se espera el insert (aunque un fallo aca no corta la respuesta): en el
     // runtime serverless de Vercel, una promesa disparada sin await puede no
