@@ -136,7 +136,7 @@ Reglas:
 - Las fechas van en formato DD/MM/AAAA tal como aparecen en la factura.
 - Extrae TODAS las lineas de detalle que encuentres.
 - No inventes datos que no esten en la imagen.
-- El lado de la factura que corresponde al contribuyente (proveedor si es venta, cliente si es compra) se completa despues con los datos que ya tenemos registrados, no hace falta que te esfuerces en leerlo de la imagen. Enfocate en extraer bien los datos de la OTRA parte (la contraparte de la operacion).
+- proveedor_nombre, proveedor_ruc, proveedor_direccion, cliente_nombre, cliente_ruc y cliente_direccion se completan SIEMPRE con lo que este impreso en la imagen, tal cual, aunque coincidan exactamente con el RUC o la razon social del contribuyente de arriba. Que ya sepas quien es el contribuyente no es motivo para dejar esos campos vacios o en null: la factura tiene que quedar completa igual.
 ${
   listaCuentas
     ? `\nEste es el plan de cuentas del contribuyente, para categorizar la factura segun el detalle de mercaderias/servicios:\n${listaCuentas}\n\nElegi el indice de la cuenta que mejor clasifique la factura en base a lo que se compro o vendio. Si ninguna calza perfecto, elegi la mas parecida de todas formas. Devolve el numero de indice tal como aparece en la lista, no el codigo de la cuenta.`
@@ -160,7 +160,7 @@ const handler: ApiHandler = async (req, res) => {
   const admin = clienteAdmin()
   const { data: contribuyente } = await admin
     .from('contribuyentes')
-    .select('id, empresa_id, ruc, razon_social, direccion')
+    .select('id, empresa_id, ruc, razon_social')
     .eq('id', body.contribuyente_id)
     .maybeSingle()
 
@@ -288,33 +288,13 @@ const handler: ApiHandler = async (req, res) => {
     })
     if (errUso) console.error('No se pudo registrar el uso de IA', errUso)
 
-    const datos = JSON.parse(contenido) as {
-      plan_cuenta_id?: string | null
-      tipo_operacion?: string
-      [k: string]: unknown
-    }
+    const datos = JSON.parse(contenido) as { plan_cuenta_id?: string | null; [k: string]: unknown }
 
     // La IA devuelve el indice de la lista, no el uuid real: se traduce aca
     // antes de mandarselo al cliente, que espera un plan_cuenta_id de verdad.
     if (datos.plan_cuenta_id != null) {
       const indice = Number(datos.plan_cuenta_id)
       datos.plan_cuenta_id = Number.isInteger(indice) ? (planCuentas?.[indice]?.id ?? null) : null
-    }
-
-    // El lado de la factura que le corresponde al contribuyente se completa
-    // con sus propios datos ya registrados, en vez de confiar en que la IA
-    // los "lea" bien de la imagen (a veces los devolvia vacios cuando
-    // coincidian exactamente con el contribuyente, por asumir que ya eran
-    // conocidos). Es venta -> el contribuyente es el proveedor/emisor. Es
-    // compra -> el contribuyente es el cliente/receptor.
-    if (datos.tipo_operacion === 'venta') {
-      datos.proveedor_nombre = contribuyente.razon_social
-      datos.proveedor_ruc = contribuyente.ruc
-      datos.proveedor_direccion = contribuyente.direccion ?? null
-    } else if (datos.tipo_operacion === 'compra') {
-      datos.cliente_nombre = contribuyente.razon_social
-      datos.cliente_ruc = contribuyente.ruc
-      datos.cliente_direccion = contribuyente.direccion ?? null
     }
 
     res.status(200).json({ ok: true, datos })
