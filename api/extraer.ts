@@ -14,14 +14,19 @@ import { conManejoDeErrores, error, exigeMetodo, leerBody, type ApiHandler } fro
  * el del emisor, es una venta.
  */
 
-const MODELO = 'gpt-4o'
+// PRUEBA: gpt-5.6-luna en vez de gpt-4o -- lee imagenes igual, sale menos
+// (ver PRECIO_* abajo), pero es un modelo nuevo sin historial probado en
+// facturas reales. Si la calidad de lectura baja, volver a 'gpt-4o' y a
+// $2.5/$10 es el unico cambio que hace falta revertir.
+const MODELO = 'gpt-5.6-luna'
 const MAX_TOKENS = 2500
 
-// Precio de gpt-4o por millon de tokens (USD). Aproximado -- sirve para
-// tener una nocion de gasto por estudio, no para facturar con precision.
-// Si OpenAI cambia el precio del modelo, hay que actualizar esto a mano.
-const PRECIO_INPUT_POR_1M = 5
-const PRECIO_OUTPUT_POR_1M = 15
+// Precio por millon de tokens (USD), verificado agosto 2026. Aproximado --
+// sirve para tener una nocion de gasto por estudio, no para facturar con
+// precision. Si OpenAI cambia el precio del modelo, hay que actualizar esto
+// a mano. gpt-4o: $2.5 / $10. gpt-5.6-luna: $1 / $6.
+const PRECIO_INPUT_POR_1M = 1
+const PRECIO_OUTPUT_POR_1M = 6
 
 interface Body {
   contribuyente_id?: string
@@ -212,6 +217,10 @@ const handler: ApiHandler = async (req, res) => {
         model: MODELO,
         max_tokens: MAX_TOKENS,
         temperature: 0,
+        // gpt-4o no reconoce este parametro; solo se manda para modelos de
+        // la familia gpt-5.x, que sí lo soportan (y lo usan aunque no se
+        // mande, por defecto en 'medium').
+        ...(MODELO.startsWith('gpt-5') ? { reasoning: { effort: 'low' } } : {}),
         messages: [
           {
             role: 'user',
