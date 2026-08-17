@@ -193,7 +193,7 @@ const handler: ApiHandler = async (req, res) => {
     .select('id, cuenta, denominacion')
     .eq('contribuyente_id', body.contribuyente_id)
     .eq('activo', true)
-    .order('codigo', { ascending: true })
+    .order('cuenta', { ascending: true })
 
   const mime = body.mime_type || 'image/png'
 
