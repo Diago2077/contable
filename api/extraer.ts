@@ -245,21 +245,19 @@ const handler: ApiHandler = async (req, res) => {
     const tokensTotal = json.usage?.total_tokens ?? tokensPrompt + tokensCompletion
     const costoUsd = (tokensPrompt * PRECIO_INPUT_POR_1M + tokensCompletion * PRECIO_OUTPUT_POR_1M) / 1_000_000
 
-    // No bloquea la respuesta si falla: el registro de consumo es secundario
-    // frente a devolverle la extraccion al usuario que esta esperando.
-    admin
-      .from('uso_ia')
-      .insert({
-        empresa_id: contribuyente.empresa_id,
-        contribuyente_id: contribuyente.id,
-        tokens_prompt: tokensPrompt,
-        tokens_completion: tokensCompletion,
-        tokens_total: tokensTotal,
-        costo_usd: costoUsd,
-      })
-      .then(({ error: errUso }) => {
-        if (errUso) console.error('No se pudo registrar el uso de IA', errUso)
-      })
+    // Se espera el insert (aunque un fallo aca no corta la respuesta): en el
+    // runtime serverless de Vercel, una promesa disparada sin await puede no
+    // llegar a completarse si el contenedor se congela apenas se devuelve la
+    // respuesta -- el registro de consumo se perdia en silencio.
+    const { error: errUso } = await admin.from('uso_ia').insert({
+      empresa_id: contribuyente.empresa_id,
+      contribuyente_id: contribuyente.id,
+      tokens_prompt: tokensPrompt,
+      tokens_completion: tokensCompletion,
+      tokens_total: tokensTotal,
+      costo_usd: costoUsd,
+    })
+    if (errUso) console.error('No se pudo registrar el uso de IA', errUso)
 
     const datos = JSON.parse(contenido)
     res.status(200).json({ ok: true, datos })
