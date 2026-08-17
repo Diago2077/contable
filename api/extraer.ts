@@ -138,7 +138,7 @@ Reglas:
 - No inventes datos que no esten en la imagen.
 ${
   listaCuentas
-    ? `\nEste es el plan de cuentas del contribuyente, para categorizar la factura segun el detalle de mercaderias/servicios:\n${listaCuentas}\n\nElegi el indice de la cuenta que mejor clasifique la factura en base a lo que se compro o vendio. Si ninguna calza perfecto, elegi la mas parecida de todas formas. Devolve el numero de indice tal como aparece en la lista, no el codigo de la cuenta.`
+    ? `\nEste es el plan de cuentas del contribuyente, para categorizar la factura segun el detalle de mercaderias/servicios:\n${listaCuentas}\n\nElegi el indice de la cuenta que mejor clasifique la factura. Reglas para elegirla:\n- Se elige por el CONCEPTO de lo que se compro o vendio (lo que dice el detalle de mercaderias/servicios), nunca por la contrapartida del asiento.\n- Si la factura es una COMPRA, corresponde una cuenta de gasto o costo. Si es una VENTA, una cuenta de ingreso o venta.\n- No elijas cuentas de pasivo (deudas del estilo "a pagar"), ni de activo, ni de patrimonio.\n- Si ninguna calza perfecto, elegi la mas parecida que cumpla lo anterior.\nDevolve el numero de indice tal como aparece en la lista, no el codigo de la cuenta.`
     : ''
 }`
 }
@@ -195,11 +195,16 @@ const handler: ApiHandler = async (req, res) => {
     }
   }
 
+  // Solo las cuentas asentables: las de nivel superior (rubros y titulos, del
+  // estilo "5132 HONORARIOS PROFESIONALES") no admiten asientos, asi que no
+  // tiene sentido que la IA pueda elegirlas -- y son varias decenas de filas
+  // menos que mandar en el prompt.
   const { data: planCuentas } = await admin
     .from('plan_cuentas')
     .select('id, cuenta, denominacion')
     .eq('contribuyente_id', body.contribuyente_id)
     .eq('activo', true)
+    .eq('asentable', true)
     .order('cuenta', { ascending: true })
 
   const { data: configDb } = await admin.from('configuracion_ia').select('*').eq('id', true).maybeSingle()
