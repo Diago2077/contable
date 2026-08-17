@@ -49,13 +49,17 @@ const ESQUEMA_DETALLE = {
 } as const
 
 function esquemaFactura(planCuentas: CuentaPlan[]) {
-  const idsCuentas = planCuentas.map((c) => c.id)
-  const propiedadPlanCuenta = idsCuentas.length > 0
+  // Se usa el indice (0, 1, 2...) en vez del uuid real de la cuenta: con un
+  // plan de cuentas de varios cientos de filas, mandarle el uuid completo a
+  // la IA -- dos veces, una en el prompt y otra en este enum -- multiplica el
+  // costo por varias veces sin necesidad. El indice se traduce de vuelta al
+  // uuid real del lado del servidor, nunca se expone al cliente.
+  const propiedadPlanCuenta = planCuentas.length > 0
     ? {
         type: ['string', 'null'] as const,
-        enum: [...idsCuentas, null],
+        enum: [...planCuentas.map((_, i) => String(i)), null],
         description:
-          'id de la cuenta del plan de cuentas que mejor clasifica esta factura segun su detalle. Si ninguna es un buen match, elegi la mas parecida igual.',
+          'indice de la cuenta del plan de cuentas que mejor clasifica esta factura segun su detalle. Si ninguna es un buen match, elegi la mas parecida igual.',
       }
     : { type: 'null' as const, description: 'el contribuyente no tiene plan de cuentas cargado' }
 
@@ -111,7 +115,7 @@ function esquemaFactura(planCuentas: CuentaPlan[]) {
 
 function prompt(rucContribuyente: string, razonSocial: string, planCuentas: CuentaPlan[]): string {
   const listaCuentas = planCuentas.length > 0
-    ? planCuentas.map((c) => `  - id ${c.id}: ${c.cuenta} — ${c.denominacion}`).join('\n')
+    ? planCuentas.map((c, i) => `  - indice ${i}: ${c.cuenta} — ${c.denominacion}`).join('\n')
     : null
 
   return `Sos un asistente que extrae datos de facturas paraguayas (timbradas por la SET) a partir de una imagen.
@@ -131,7 +135,7 @@ Reglas:
 - No inventes datos que no esten en la imagen.
 ${
   listaCuentas
-    ? `\nEste es el plan de cuentas del contribuyente, para categorizar la factura segun el detalle de mercaderias/servicios:\n${listaCuentas}\n\nElegi el id de la cuenta que mejor clasifique la factura en base a lo que se compro o vendio. Si ninguna calza perfecto, elegi la mas parecida de todas formas. Devolve el id exacto tal como aparece en la lista, no el codigo.`
+    ? `\nEste es el plan de cuentas del contribuyente, para categorizar la factura segun el detalle de mercaderias/servicios:\n${listaCuentas}\n\nElegi el indice de la cuenta que mejor clasifique la factura en base a lo que se compro o vendio. Si ninguna calza perfecto, elegi la mas parecida de todas formas. Devolve el numero de indice tal como aparece en la lista, no el codigo de la cuenta.`
     : ''
 }`
 }
@@ -259,7 +263,15 @@ const handler: ApiHandler = async (req, res) => {
     })
     if (errUso) console.error('No se pudo registrar el uso de IA', errUso)
 
-    const datos = JSON.parse(contenido)
+    const datos = JSON.parse(contenido) as { plan_cuenta_id?: string | null; [k: string]: unknown }
+
+    // La IA devuelve el indice de la lista, no el uuid real: se traduce aca
+    // antes de mandarselo al cliente, que espera un plan_cuenta_id de verdad.
+    if (datos.plan_cuenta_id != null) {
+      const indice = Number(datos.plan_cuenta_id)
+      datos.plan_cuenta_id = Number.isInteger(indice) ? (planCuentas?.[indice]?.id ?? null) : null
+    }
+
     res.status(200).json({ ok: true, datos })
   } catch (e) {
     console.error('api/extraer', e)
