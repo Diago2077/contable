@@ -224,7 +224,7 @@ export function EditarFacturaModal({
             <option value="">Sin categorizar</option>
             {planCuentas.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.codigo} — {c.descripcion}
+                {c.cuenta} — {c.denominacion}
               </option>
             ))}
           </Select>

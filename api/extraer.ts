@@ -31,8 +31,8 @@ interface Body {
 
 interface CuentaPlan {
   id: string
-  codigo: string
-  descripcion: string
+  cuenta: string
+  denominacion: string
 }
 
 const ESQUEMA_DETALLE = {
@@ -111,7 +111,7 @@ function esquemaFactura(planCuentas: CuentaPlan[]) {
 
 function prompt(rucContribuyente: string, razonSocial: string, planCuentas: CuentaPlan[]): string {
   const listaCuentas = planCuentas.length > 0
-    ? planCuentas.map((c) => `  - id ${c.id}: ${c.codigo} — ${c.descripcion}`).join('\n')
+    ? planCuentas.map((c) => `  - id ${c.id}: ${c.cuenta} — ${c.denominacion}`).join('\n')
     : null
 
   return `Sos un asistente que extrae datos de facturas paraguayas (timbradas por la SET) a partir de una imagen.
@@ -190,7 +190,7 @@ const handler: ApiHandler = async (req, res) => {
 
   const { data: planCuentas } = await admin
     .from('plan_cuentas')
-    .select('id, codigo, descripcion')
+    .select('id, cuenta, denominacion')
     .eq('contribuyente_id', body.contribuyente_id)
     .eq('activo', true)
     .order('codigo', { ascending: true })

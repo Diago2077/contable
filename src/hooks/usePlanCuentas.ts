@@ -18,7 +18,7 @@ export function usePlanCuentas(contribuyenteId: string | undefined) {
       .from('plan_cuentas')
       .select('*')
       .eq('contribuyente_id', contribuyenteId)
-      .order('codigo', { ascending: true })
+      .order('cuenta', { ascending: true })
 
     setEstado({
       data: (data as PlanCuenta[]) ?? [],
@@ -35,19 +35,19 @@ export function usePlanCuentas(contribuyenteId: string | undefined) {
     const { data, error } = await supabase.from('plan_cuentas').insert(payload).select().single()
     if (error) {
       const duplicado = error.code === '23505'
-      return { data: null, error: duplicado ? 'Ya existe una cuenta con ese codigo.' : 'No se pudo guardar.' }
+      return { data: null, error: duplicado ? 'Ya existe una cuenta con ese numero.' : 'No se pudo guardar.' }
     }
     return { data: data as PlanCuenta, error: null }
   }
 
-  /** Inserta varias de una, salteando codigos que ya existan (para importar CSV). */
+  /** Inserta varias de una, salteando cuentas que ya existan (para importar CSV). */
   async function crearVarias(filas: PlanCuentaInsert[]) {
     if (filas.length === 0) return { insertadas: 0, error: null }
     const { error, count } = await supabase
       .from('plan_cuentas')
       .insert(filas, { count: 'exact' })
     if (error) {
-      return { insertadas: 0, error: 'No se pudieron importar las cuentas. Revisa que no haya codigos repetidos.' }
+      return { insertadas: 0, error: 'No se pudieron importar las cuentas. Revisa que no haya numeros de cuenta repetidos.' }
     }
     return { insertadas: count ?? filas.length, error: null }
   }
@@ -56,7 +56,7 @@ export function usePlanCuentas(contribuyenteId: string | undefined) {
     const { error } = await supabase.from('plan_cuentas').update(payload).eq('id', id)
     if (error) {
       const duplicado = error.code === '23505'
-      return { error: duplicado ? 'Ya existe una cuenta con ese codigo.' : 'No se pudo guardar.' }
+      return { error: duplicado ? 'Ya existe una cuenta con ese numero.' : 'No se pudo guardar.' }
     }
     return { error: null }
   }

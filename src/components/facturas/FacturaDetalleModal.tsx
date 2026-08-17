@@ -107,7 +107,7 @@ export function FacturaDetalleModal({
               ['Vencimiento timbrado', formatFecha(factura.timbrado_vencimiento)],
               ['Condicion de venta', factura.condicion_venta === 'contado' ? 'Contado' : factura.condicion_venta === 'credito' ? 'Credito' : null],
               ['Forma de pago', factura.forma_pago],
-              ['Categoria', factura.plan_cuentas ? `${factura.plan_cuentas.codigo} — ${factura.plan_cuentas.descripcion}` : null],
+              ['Categoria', factura.plan_cuentas ? `${factura.plan_cuentas.cuenta} — ${factura.plan_cuentas.denominacion}` : null],
             ]}
           />
 

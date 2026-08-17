@@ -12,7 +12,7 @@ Reemplaza al Extractor de Facturas hecho en Google Apps Script
 empresas (estudio contable)      ← el limite de aislamiento
   ├── usuarios
   └── contribuyentes             ← los clientes del estudio
-        ├── plan_cuentas         ← categorizacion (codigo + descripcion)
+        ├── plan_cuentas         ← categorizacion jerarquica (cuenta, denominacion, nivel, etc.)
         └── facturas ── factura_detalles
 ```
 

@@ -63,12 +63,26 @@ export interface Contribuyente {
   created_at: string
 }
 
+export type Naturaleza = 'D' | 'A'
+
 export interface PlanCuenta {
   id: string
   empresa_id: string
   contribuyente_id: string
-  codigo: string
-  descripcion: string
+  cuenta: string
+  denominacion: string
+  /** Profundidad en el arbol del plan de cuentas. Se carga tal cual, no se deriva del codigo. */
+  nivel: number | null
+  /** D = Deudora, A = Acreedora. */
+  naturaleza: Naturaleza | null
+  /** Si puede recibir facturas directamente, o es solo una cuenta de agrupacion (ej. "ACTIVO"). */
+  asentable: boolean
+  centro_costo: boolean
+  moneda: string
+  /** Texto libre: no tiene un formato fijo en el sistema de origen. */
+  tipo_cambio: string | null
+  /** Codigo de referencia a otro sistema (ej. SSET/Hechauka), opcional. */
+  cuenta_sset: string | null
   activo: boolean
   created_at: string
 }
@@ -148,6 +162,6 @@ export type FacturaDetalleInsert = Omit<FacturaDetalle, 'id'>
 
 /** Factura con sus relaciones resueltas, tal como la devuelven los listados. */
 export interface FacturaConRelaciones extends Factura {
-  plan_cuentas: Pick<PlanCuenta, 'id' | 'codigo' | 'descripcion'> | null
+  plan_cuentas: Pick<PlanCuenta, 'id' | 'cuenta' | 'denominacion'> | null
   factura_detalles?: FacturaDetalle[]
 }

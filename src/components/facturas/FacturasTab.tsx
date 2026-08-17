@@ -89,7 +89,7 @@ export function FacturasTab({ contribuyenteId }: { contribuyenteId: string }) {
           <option value="">Todas las categorias</option>
           {planCuentas.map((c) => (
             <option key={c.id} value={c.id}>
-              {c.codigo} — {c.descripcion}
+              {c.cuenta} — {c.denominacion}
             </option>
           ))}
         </Select>
@@ -178,7 +178,7 @@ export function FacturasTab({ contribuyenteId }: { contribuyenteId: string }) {
                         {(f.tipo_operacion === 'compra' ? f.proveedor_nombre : f.cliente_nombre) || '—'}
                       </td>
                       <td className="px-4 py-2.5 text-muted-foreground">
-                        {f.plan_cuentas ? `${f.plan_cuentas.codigo} — ${f.plan_cuentas.descripcion}` : '—'}
+                        {f.plan_cuentas ? `${f.plan_cuentas.cuenta} — ${f.plan_cuentas.denominacion}` : '—'}
                       </td>
                       <td className="px-4 py-2.5 text-right">
                         <span className="tabular font-medium text-foreground">

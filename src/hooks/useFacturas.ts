@@ -38,7 +38,7 @@ export function useFacturas(contribuyenteId: string | undefined, filtros: Filtro
 
     let q = supabase
       .from('facturas')
-      .select('*, plan_cuentas(id, codigo, descripcion)', { count: 'exact' })
+      .select('*, plan_cuentas(id, cuenta, denominacion)', { count: 'exact' })
       .eq('contribuyente_id', contribuyenteId)
 
     if (filtros.tipoOperacion) q = q.eq('tipo_operacion', filtros.tipoOperacion)
