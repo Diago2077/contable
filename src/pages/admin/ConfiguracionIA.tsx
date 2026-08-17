@@ -22,6 +22,8 @@ export default function ConfiguracionIA() {
   const [errorForm, setErrorForm] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
 
+  const [modoOtro, setModoOtro] = useState(false)
+
   useEffect(() => {
     if (!config) return
     setForm({
@@ -31,6 +33,7 @@ export default function ConfiguracionIA() {
       reasoningEffort: config.reasoning_effort ?? '',
       maxTokens: String(config.max_tokens),
     })
+    setModoOtro(!MODELOS_CONOCIDOS.includes(config.modelo))
   }, [config])
 
   function campo<K extends keyof Form>(key: K, valor: Form[K]) {
@@ -81,18 +84,37 @@ export default function ConfiguracionIA() {
         <ErrorBox mensaje={error} />
       ) : (
         <div className="max-w-lg space-y-4 rounded-lg border border-border bg-card p-5">
-          <Field label="Modelo *" hint="El id exacto que espera la API de OpenAI (ej. gpt-4o, gpt-5.6-luna).">
-            <Input
-              value={form.modelo}
-              onChange={(e) => campo('modelo', e.target.value)}
-              list="modelos-conocidos"
-              autoComplete="off"
-            />
-            <datalist id="modelos-conocidos">
+          <Field label="Modelo *">
+            <Select
+              value={modoOtro ? 'otro' : form.modelo}
+              onChange={(e) => {
+                const valor = e.target.value
+                if (valor === 'otro') {
+                  setModoOtro(true)
+                  campo('modelo', '')
+                } else {
+                  setModoOtro(false)
+                  campo('modelo', valor)
+                }
+              }}
+            >
               {MODELOS_CONOCIDOS.map((m) => (
-                <option key={m} value={m} />
+                <option key={m} value={m}>
+                  {m}
+                </option>
               ))}
-            </datalist>
+              <option value="otro">Otro…</option>
+            </Select>
+            {modoOtro && (
+              <Input
+                className="mt-2"
+                value={form.modelo}
+                onChange={(e) => campo('modelo', e.target.value)}
+                placeholder="Id exacto del modelo en la API de OpenAI"
+                autoComplete="off"
+                autoFocus
+              />
+            )}
           </Field>
 
           <div className="grid grid-cols-2 gap-3">

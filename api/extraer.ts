@@ -279,6 +279,7 @@ const handler: ApiHandler = async (req, res) => {
     const { error: errUso } = await admin.from('uso_ia').insert({
       empresa_id: contribuyente.empresa_id,
       contribuyente_id: contribuyente.id,
+      modelo: config.modelo,
       tokens_prompt: tokensPrompt,
       tokens_completion: tokensCompletion,
       tokens_total: tokensTotal,

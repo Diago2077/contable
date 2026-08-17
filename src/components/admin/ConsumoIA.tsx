@@ -2,9 +2,9 @@ import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Cargando } from '@/components/ui/estado'
+import { Cargando, Vacio } from '@/components/ui/estado'
 import { Input } from '@/components/ui/field'
-import { formatMonto } from '@/lib/format'
+import { formatFechaHora, formatMonto } from '@/lib/format'
 import { supabase } from '@/lib/supabase'
 
 const MESES = [
@@ -16,6 +16,17 @@ interface Totales {
   facturas: number
   tokens: number
   costoUsd: number
+}
+
+interface FilaUso {
+  id: string
+  created_at: string
+  modelo: string | null
+  tokens_prompt: number
+  tokens_completion: number
+  tokens_total: number
+  costo_usd: number
+  contribuyente: { razon_social: string } | null
 }
 
 /** Consumo de IA del estudio, mes a mes, con limite mensual configurable. */
@@ -32,6 +43,7 @@ export function ConsumoIA({
   const [anio, setAnio] = useState(hoy.getUTCFullYear())
   const [mes, setMes] = useState(hoy.getUTCMonth()) // 0-11
   const [totales, setTotales] = useState<Totales | null>(null)
+  const [filas, setFilas] = useState<FilaUso[]>([])
   const [cargando, setCargando] = useState(true)
 
   const esMesActual = anio === hoy.getUTCFullYear() && mes === hoy.getUTCMonth()
@@ -45,17 +57,19 @@ export function ConsumoIA({
 
     supabase
       .from('uso_ia')
-      .select('tokens_total, costo_usd')
+      .select('id, created_at, modelo, tokens_prompt, tokens_completion, tokens_total, costo_usd, contribuyente:contribuyentes(razon_social)')
       .eq('empresa_id', empresaId)
       .gte('created_at', inicio)
       .lt('created_at', fin)
+      .order('created_at', { ascending: false })
       .then(({ data }) => {
         if (cancelado) return
-        const filas = data ?? []
+        const lista = (data ?? []) as unknown as FilaUso[]
+        setFilas(lista)
         setTotales({
-          facturas: filas.length,
-          tokens: filas.reduce((acc, f) => acc + f.tokens_total, 0),
-          costoUsd: filas.reduce((acc, f) => acc + Number(f.costo_usd), 0),
+          facturas: lista.length,
+          tokens: lista.reduce((acc, f) => acc + f.tokens_total, 0),
+          costoUsd: lista.reduce((acc, f) => acc + Number(f.costo_usd), 0),
         })
         setCargando(false)
       })
@@ -131,6 +145,39 @@ export function ConsumoIA({
             <p className="text-lg font-semibold tabular text-foreground">${formatMonto(totales.costoUsd, 'USD')}</p>
           </div>
         </div>
+      )}
+
+      {!cargando && filas.length > 0 && (
+        <div className="mt-4 max-h-72 overflow-y-auto rounded-md border border-border">
+          <table className="w-full text-xs">
+            <thead className="sticky top-0 bg-secondary/60">
+              <tr className="border-b border-border text-left text-muted-foreground">
+                <th className="px-3 py-2 font-medium">Fecha</th>
+                <th className="px-3 py-2 font-medium">Contribuyente</th>
+                <th className="px-3 py-2 font-medium">Modelo</th>
+                <th className="px-3 py-2 text-right font-medium">Prompt</th>
+                <th className="px-3 py-2 text-right font-medium">Completion</th>
+                <th className="px-3 py-2 text-right font-medium">Costo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filas.map((f) => (
+                <tr key={f.id} className="border-b border-border last:border-0">
+                  <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">{formatFechaHora(f.created_at)}</td>
+                  <td className="px-3 py-2 text-foreground">{f.contribuyente?.razon_social ?? '—'}</td>
+                  <td className="px-3 py-2 text-muted-foreground">{f.modelo ?? '—'}</td>
+                  <td className="px-3 py-2 text-right tabular text-foreground">{formatMonto(f.tokens_prompt, 'PYG')}</td>
+                  <td className="px-3 py-2 text-right tabular text-foreground">{formatMonto(f.tokens_completion, 'PYG')}</td>
+                  <td className="px-3 py-2 text-right tabular text-foreground">${formatMonto(f.costo_usd, 'USD')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {!cargando && totales && filas.length === 0 && (
+        <Vacio icono={Sparkles} titulo="Sin uso este mes" />
       )}
 
       {superoLimite && (

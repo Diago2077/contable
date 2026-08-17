@@ -30,6 +30,7 @@ export interface UsoIA {
   id: string
   empresa_id: string
   contribuyente_id: string | null
+  modelo: string | null
   tokens_prompt: number
   tokens_completion: number
   tokens_total: number
