@@ -216,7 +216,10 @@ const handler: ApiHandler = async (req, res) => {
       },
       body: JSON.stringify({
         model: config.modelo,
-        temperature: 0,
+        // Los modelos gpt-5.x (razonadores) solo aceptan el temperature por
+        // defecto (1): mandar 0 (para que la extraccion sea deterministica)
+        // tira error en esos modelos, asi que directamente no se manda.
+        ...(config.modelo.startsWith('gpt-5') ? {} : { temperature: 0 }),
         // Los modelos gpt-5.x (razonadores) no aceptan 'max_tokens' -- piden
         // 'max_completion_tokens' en su lugar; los demas (gpt-4o y previos)
         // es al reves. Mandar el que no corresponde tira un error 400.
