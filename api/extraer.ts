@@ -225,9 +225,11 @@ const handler: ApiHandler = async (req, res) => {
           : { max_tokens: config.max_tokens }),
         // gpt-4o no reconoce este parametro; solo se manda para modelos de
         // la familia gpt-5.x, que sí lo soportan (y lo usan aunque no se
-        // mande, por defecto en 'medium').
+        // mande, por defecto en 'medium'). Va plano (reasoning_effort) en
+        // /v1/chat/completions -- la forma anidada { reasoning: { effort } }
+        // es de /v1/responses, otro endpoint, y tira "Unknown parameter".
         ...(config.modelo.startsWith('gpt-5') && config.reasoning_effort
-          ? { reasoning: { effort: config.reasoning_effort } }
+          ? { reasoning_effort: config.reasoning_effort }
           : {}),
         messages: [
           {
