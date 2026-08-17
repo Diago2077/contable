@@ -1,5 +1,5 @@
-import { FileSpreadsheet, Plus, Trash2, Upload } from 'lucide-react'
-import { useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { FileSpreadsheet, Plus, Search, Trash2, Upload } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -9,6 +9,7 @@ import { ConfirmModal, Modal } from '@/components/ui/modal'
 import { usePlanCuentas } from '@/hooks/usePlanCuentas'
 import type { Naturaleza, PlanCuenta } from '@/lib/database.types'
 import { leerTextoArchivo, parseCsv } from '@/lib/csv'
+import { normalizar } from '@/lib/format'
 import { parseXlsx } from '@/lib/xlsx'
 
 const NATURALEZA_LABEL: Record<Naturaleza, string> = { D: 'Deudora', A: 'Acreedora' }
@@ -36,8 +37,15 @@ export function PlanCuentasTab({
 
   const [modalCuenta, setModalCuenta] = useState<PlanCuenta | 'nueva' | null>(null)
   const [modalEliminar, setModalEliminar] = useState<PlanCuenta | null>(null)
+  const [busqueda, setBusqueda] = useState('')
   const inputArchivo = useRef<HTMLInputElement>(null)
   const [importando, setImportando] = useState(false)
+
+  const filtradas = useMemo(() => {
+    const q = normalizar(busqueda)
+    if (!q) return data
+    return data.filter((c) => normalizar(c.cuenta).includes(q) || normalizar(c.denominacion).includes(q))
+  }, [data, busqueda])
 
   async function onImportarArchivo(e: ChangeEvent<HTMLInputElement>) {
     const archivo = e.target.files?.[0]
@@ -120,6 +128,18 @@ export function PlanCuentasTab({
         </div>
       </div>
 
+      {data.length > 0 && (
+        <div className="relative mb-4 max-w-sm">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="pl-9"
+            placeholder="Buscar por cuenta o denominacion…"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+          />
+        </div>
+      )}
+
       {loading ? (
         <Cargando />
       ) : error ? (
@@ -135,6 +155,8 @@ export function PlanCuentasTab({
             </Button>
           }
         />
+      ) : filtradas.length === 0 ? (
+        <Vacio icono={Search} titulo="Sin resultados" descripcion="Probá con otra busqueda." />
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border bg-card">
           <table className="w-full text-sm">
@@ -150,7 +172,7 @@ export function PlanCuentasTab({
               </tr>
             </thead>
             <tbody>
-              {data.map((c) => (
+              {filtradas.map((c) => (
                 <tr
                   key={c.id}
                   onClick={() => setModalCuenta(c)}

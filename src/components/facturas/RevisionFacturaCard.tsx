@@ -1,6 +1,7 @@
 import { AlertTriangle, RotateCcw, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Combobox } from '@/components/ui/combobox'
 import { Field, Input, Select, Textarea } from '@/components/ui/field'
 import { MontoInput } from '@/components/ui/monto-input'
 import type { PlanCuenta } from '@/lib/database.types'
@@ -253,14 +254,12 @@ export function RevisionFacturaCard({
             </div>
 
             <Field label="Categoria (plan de cuentas)">
-              <Select value={form.plan_cuenta_id} onChange={(e) => campo('plan_cuenta_id', e.target.value)}>
-                <option value="">Sin categorizar</option>
-                {planCuentas.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.cuenta} — {c.denominacion}
-                  </option>
-                ))}
-              </Select>
+              <Combobox
+                value={form.plan_cuenta_id}
+                onChange={(v) => campo('plan_cuenta_id', v)}
+                options={planCuentas.map((c) => ({ value: c.id, label: `${c.cuenta} — ${c.denominacion}` }))}
+                placeholder="Buscar cuenta…"
+              />
             </Field>
 
             <Field label="Observaciones">
