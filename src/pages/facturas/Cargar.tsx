@@ -41,8 +41,10 @@ export default function CargarFacturas() {
   const [arrastrando, setArrastrando] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  function actualizarItem(id: string, cambios: Partial<ItemLote>) {
-    setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...cambios } : it)))
+  function actualizarItem(id: string, cambios: Partial<ItemLote> | ((item: ItemLote) => Partial<ItemLote>)) {
+    setItems((prev) =>
+      prev.map((it) => (it.id === id ? { ...it, ...(typeof cambios === 'function' ? cambios(it) : cambios) } : it)),
+    )
   }
 
   async function onArchivosSeleccionados(archivos: FileList | File[]) {
@@ -246,7 +248,7 @@ export default function CargarFacturas() {
                 key={item.id}
                 item={item}
                 planCuentas={planCuentas}
-                onCambiar={(cambios) => actualizarItem(item.id, { form: { ...item.form!, ...cambios } })}
+                onCambiar={(cambios) => actualizarItem(item.id, (it) => ({ form: { ...it.form!, ...cambios } }))}
                 onDescartar={() => actualizarItem(item.id, { estado: 'descartado' })}
                 onRestaurar={() => actualizarItem(item.id, { estado: 'listo' })}
               />
