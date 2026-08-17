@@ -1,8 +1,10 @@
-import { AlertTriangle, RotateCcw, Trash2 } from 'lucide-react'
+import { AlertTriangle, RotateCcw, Trash2, ZoomIn } from 'lucide-react'
+import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
 import { Field, Input, Select, Textarea } from '@/components/ui/field'
+import { ImageLightbox } from '@/components/ui/image-lightbox'
 import { MontoInput } from '@/components/ui/monto-input'
 import type { PlanCuenta } from '@/lib/database.types'
 import { MONEDAS } from '@/lib/database.types'
@@ -30,6 +32,8 @@ export function RevisionFacturaCard({
   onDescartar: () => void
   onRestaurar: () => void
 }) {
+  const [lightboxAbierto, setLightboxAbierto] = useState(false)
+
   function campo<K extends keyof FacturaFormState>(key: K, valor: FacturaFormState[K]) {
     onCambiar({ [key]: valor } as Partial<FacturaFormState>)
   }
@@ -65,11 +69,20 @@ export function RevisionFacturaCard({
         <div className="flex flex-col gap-5 p-4 lg:flex-row">
           {/* Imagen grande, sticky para acompañar el scroll del formulario */}
           <div className="lg:sticky lg:top-20 lg:h-fit lg:w-[460px] lg:shrink-0">
-            <img
-              src={previewSrc}
-              alt={nombreArchivo}
-              className="max-h-[70vh] w-full rounded-md border border-border object-contain lg:max-h-[640px]"
-            />
+            <button
+              type="button"
+              onClick={() => setLightboxAbierto(true)}
+              className="group relative block w-full overflow-hidden rounded-md border border-border"
+            >
+              <img
+                src={previewSrc}
+                alt={nombreArchivo}
+                className="max-h-[70vh] w-full object-contain lg:max-h-[640px]"
+              />
+              <span className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/30">
+                <ZoomIn className="size-6 text-white opacity-0 transition-opacity group-hover:opacity-100" />
+              </span>
+            </button>
           </div>
 
           <div className="min-w-0 flex-1 space-y-5">
@@ -279,6 +292,8 @@ export function RevisionFacturaCard({
           </div>
         </div>
       )}
+
+      <ImageLightbox src={previewSrc} alt={nombreArchivo} abierto={lightboxAbierto} onCerrar={() => setLightboxAbierto(false)} />
     </div>
   )
 }
