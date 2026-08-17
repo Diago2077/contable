@@ -216,8 +216,13 @@ const handler: ApiHandler = async (req, res) => {
       },
       body: JSON.stringify({
         model: config.modelo,
-        max_tokens: config.max_tokens,
         temperature: 0,
+        // Los modelos gpt-5.x (razonadores) no aceptan 'max_tokens' -- piden
+        // 'max_completion_tokens' en su lugar; los demas (gpt-4o y previos)
+        // es al reves. Mandar el que no corresponde tira un error 400.
+        ...(config.modelo.startsWith('gpt-5')
+          ? { max_completion_tokens: config.max_tokens }
+          : { max_tokens: config.max_tokens }),
         // gpt-4o no reconoce este parametro; solo se manda para modelos de
         // la familia gpt-5.x, que sí lo soportan (y lo usan aunque no se
         // mande, por defecto en 'medium').
