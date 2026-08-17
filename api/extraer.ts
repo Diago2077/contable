@@ -159,7 +159,7 @@ const handler: ApiHandler = async (req, res) => {
   const admin = clienteAdmin()
   const { data: contribuyente } = await admin
     .from('contribuyentes')
-    .select('id, empresa_id, ruc, razon_social')
+    .select('id, empresa_id, ruc, razon_social, direccion')
     .eq('id', body.contribuyente_id)
     .maybeSingle()
 
@@ -287,13 +287,26 @@ const handler: ApiHandler = async (req, res) => {
     })
     if (errUso) console.error('No se pudo registrar el uso de IA', errUso)
 
-    const datos = JSON.parse(contenido) as { plan_cuenta_id?: string | null; [k: string]: unknown }
+    const datos = JSON.parse(contenido) as {
+      plan_cuenta_id?: string | null
+      tipo_operacion?: string
+      [k: string]: unknown
+    }
 
     // La IA devuelve el indice de la lista, no el uuid real: se traduce aca
     // antes de mandarselo al cliente, que espera un plan_cuenta_id de verdad.
     if (datos.plan_cuenta_id != null) {
       const indice = Number(datos.plan_cuenta_id)
       datos.plan_cuenta_id = Number.isInteger(indice) ? (planCuentas?.[indice]?.id ?? null) : null
+    }
+
+    // En una venta, el proveedor es el propio contribuyente: se completa con
+    // sus datos ya registrados en vez de depender de que la IA los lea bien
+    // de la imagen.
+    if (datos.tipo_operacion === 'venta') {
+      datos.proveedor_nombre = contribuyente.razon_social
+      datos.proveedor_ruc = contribuyente.ruc
+      datos.proveedor_direccion = contribuyente.direccion ?? null
     }
 
     res.status(200).json({ ok: true, datos })
