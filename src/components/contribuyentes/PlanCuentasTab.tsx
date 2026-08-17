@@ -8,7 +8,7 @@ import { Field, Input, Select } from '@/components/ui/field'
 import { ConfirmModal, Modal } from '@/components/ui/modal'
 import { usePlanCuentas } from '@/hooks/usePlanCuentas'
 import type { Naturaleza, PlanCuenta } from '@/lib/database.types'
-import { parseCsv } from '@/lib/csv'
+import { leerTextoArchivo, parseCsv } from '@/lib/csv'
 import { parseXlsx } from '@/lib/xlsx'
 
 const NATURALEZA_LABEL: Record<Naturaleza, string> = { D: 'Deudora', A: 'Acreedora' }
@@ -47,7 +47,7 @@ export function PlanCuentasTab({
     setImportando(true)
     try {
       const esExcel = /\.xlsx$/i.test(archivo.name)
-      const filas = esExcel ? await parseXlsx(archivo) : parseCsv(await archivo.text())
+      const filas = esExcel ? await parseXlsx(archivo) : parseCsv(await leerTextoArchivo(archivo))
       // Encabezado esperado: Cuenta,Denominacion,Nivel,Naturaleza,Asentable,Centro Costo,Moneda,Tipo cambio,Cuenta SSET
       // (se acepta tambien solo Cuenta,Denominacion, para compatibilidad con CSVs viejos)
       const primera = filas[0]?.map((v) => v.trim().toLowerCase())
