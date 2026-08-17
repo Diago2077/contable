@@ -9,6 +9,7 @@ import { ConfirmModal, Modal } from '@/components/ui/modal'
 import { usePlanCuentas } from '@/hooks/usePlanCuentas'
 import type { Naturaleza, PlanCuenta } from '@/lib/database.types'
 import { parseCsv } from '@/lib/csv'
+import { parseXlsx } from '@/lib/xlsx'
 
 const NATURALEZA_LABEL: Record<Naturaleza, string> = { D: 'Deudora', A: 'Acreedora' }
 
@@ -38,15 +39,15 @@ export function PlanCuentasTab({
   const inputArchivo = useRef<HTMLInputElement>(null)
   const [importando, setImportando] = useState(false)
 
-  async function onImportarCsv(e: ChangeEvent<HTMLInputElement>) {
+  async function onImportarArchivo(e: ChangeEvent<HTMLInputElement>) {
     const archivo = e.target.files?.[0]
     e.target.value = ''
     if (!archivo) return
 
     setImportando(true)
     try {
-      const texto = await archivo.text()
-      const filas = parseCsv(texto)
+      const esExcel = /\.xlsx$/i.test(archivo.name)
+      const filas = esExcel ? await parseXlsx(archivo) : parseCsv(await archivo.text())
       // Encabezado esperado: Cuenta,Denominacion,Nivel,Naturaleza,Asentable,Centro Costo,Moneda,Tipo cambio,Cuenta SSET
       // (se acepta tambien solo Cuenta,Denominacion, para compatibilidad con CSVs viejos)
       const primera = filas[0]?.map((v) => v.trim().toLowerCase())
@@ -106,12 +107,12 @@ export function PlanCuentasTab({
           <input
             ref={inputArchivo}
             type="file"
-            accept=".csv,text/csv"
+            accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             className="hidden"
-            onChange={onImportarCsv}
+            onChange={onImportarArchivo}
           />
           <Button variant="outline" size="sm" onClick={() => inputArchivo.current?.click()} disabled={importando}>
-            <Upload /> {importando ? 'Importando…' : 'Importar CSV'}
+            <Upload /> {importando ? 'Importando…' : 'Importar CSV o Excel'}
           </Button>
           <Button size="sm" onClick={() => setModalCuenta('nueva')}>
             <Plus /> Nueva cuenta
@@ -127,7 +128,7 @@ export function PlanCuentasTab({
         <Vacio
           icono={FileSpreadsheet}
           titulo="Sin plan de cuentas"
-          descripcion="Agrega cuentas una por una o importa un CSV con columnas cuenta,denominacion,nivel,naturaleza,asentable,centro costo,moneda,tipo cambio,cuenta sset."
+          descripcion="Agrega cuentas una por una o importa un CSV o Excel con columnas cuenta,denominacion,nivel,naturaleza,asentable,centro costo,moneda,tipo cambio,cuenta sset."
           accion={
             <Button size="sm" onClick={() => setModalCuenta('nueva')}>
               <Plus /> Nueva cuenta
