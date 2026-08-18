@@ -239,6 +239,28 @@ const handler: ApiHandler = async (req, res) => {
   const { data: configDb } = await admin.from('configuracion_ia').select('*').eq('id', true).maybeSingle()
   const config = configDb ?? CONFIG_POR_DEFECTO
 
+  // Tope por usuario y hora. El limite de mas arriba es mensual y por
+  // estudio, asi que sin este una sola persona arrastrando trescientos
+  // archivos deja sin cupo al resto del estudio en cuestion de minutos.
+  const limitePorHora = (config as { limite_tokens_usuario_hora?: number | null }).limite_tokens_usuario_hora
+  if (limitePorHora != null) {
+    const haceUnaHora = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+    const { data: usoHora } = await admin
+      .from('uso_ia')
+      .select('tokens_total')
+      .eq('usuario_id', perfil.id)
+      .gte('created_at', haceUnaHora)
+
+    const tokensUltimaHora = (usoHora ?? []).reduce((acc, u) => acc + u.tokens_total, 0)
+    if (tokensUltimaHora >= limitePorHora) {
+      return error(
+        res,
+        429,
+        'Alcanzaste el limite de extraccion por hora. Espera un rato antes de seguir cargando facturas.',
+      )
+    }
+  }
+
   const mime = body.mime_type || 'image/png'
 
   try {
@@ -330,6 +352,7 @@ const handler: ApiHandler = async (req, res) => {
     const { error: errUso } = await admin.from('uso_ia').insert({
       empresa_id: contribuyente.empresa_id,
       contribuyente_id: contribuyente.id,
+      usuario_id: perfil.id,
       modelo: config.modelo,
       tokens_prompt: tokensPrompt,
       tokens_completion: tokensCompletion,

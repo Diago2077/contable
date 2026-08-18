@@ -15,6 +15,7 @@ interface Form {
   precioCache: string
   reasoningEffort: '' | ReasoningEffort
   maxTokens: string
+  limiteUsuarioHora: string
 }
 
 export default function ConfiguracionIA() {
@@ -34,6 +35,8 @@ export default function ConfiguracionIA() {
       precioCache: String(config.precio_cache_por_1m),
       reasoningEffort: config.reasoning_effort ?? '',
       maxTokens: String(config.max_tokens),
+      limiteUsuarioHora:
+        config.limite_tokens_usuario_hora != null ? String(config.limite_tokens_usuario_hora) : '',
     })
     setModoOtro(!MODELOS_CONOCIDOS.includes(config.modelo))
   }, [config])
@@ -55,6 +58,11 @@ export default function ConfiguracionIA() {
     if (!Number.isFinite(precioCache) || precioCache < 0) return setErrorForm('El precio de cache no es valido.')
     if (!Number.isInteger(maxTokens) || maxTokens < 1) return setErrorForm('max_tokens no es valido.')
 
+    const limiteUsuarioHora = form.limiteUsuarioHora.trim() === '' ? null : Number(form.limiteUsuarioHora)
+    if (limiteUsuarioHora !== null && (!Number.isInteger(limiteUsuarioHora) || limiteUsuarioHora < 1)) {
+      return setErrorForm('El limite por usuario y hora no es valido.')
+    }
+
     setGuardando(true)
     setErrorForm(null)
     const { error: err } = await actualizar({
@@ -64,6 +72,7 @@ export default function ConfiguracionIA() {
       precio_cache_por_1m: precioCache,
       reasoning_effort: form.reasoningEffort || null,
       max_tokens: maxTokens,
+      limite_tokens_usuario_hora: limiteUsuarioHora,
     })
     setGuardando(false)
     if (err) {
@@ -183,6 +192,19 @@ export default function ConfiguracionIA() {
               />
             </Field>
           </div>
+
+          <Field
+            label="Limite de tokens por usuario y hora"
+            hint="Evita que una sola persona agote el cupo mensual del estudio de una sentada. Vacio = sin tope."
+          >
+            <Input
+              type="number"
+              min={1}
+              placeholder="Sin tope"
+              value={form.limiteUsuarioHora}
+              onChange={(e) => campo('limiteUsuarioHora', e.target.value)}
+            />
+          </Field>
 
           {errorForm && <ErrorBox mensaje={errorForm} />}
 

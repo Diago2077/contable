@@ -293,7 +293,12 @@ export function RevisionFacturaCard({
               <Combobox
                 value={form.plan_cuenta_id}
                 onChange={(v) => campo('plan_cuenta_id', v)}
-                options={planCuentas.map((c) => ({ value: c.id, label: `${c.cuenta} — ${c.denominacion}` }))}
+                // Las cuentas no asentables son titulos de rubro: no admiten
+                // asientos, asi que no se pueden imputar. Se deja pasar la ya
+                // elegida por si una factura vieja quedo con una.
+                options={planCuentas
+                  .filter((c) => c.asentable || c.id === form.plan_cuenta_id)
+                  .map((c) => ({ value: c.id, label: `${c.cuenta} — ${c.denominacion}` }))}
                 placeholder="Buscar cuenta…"
               />
             </Field>

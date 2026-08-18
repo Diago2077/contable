@@ -46,7 +46,10 @@ export function useFacturas(contribuyenteId: string | undefined, filtros: Filtro
     if (filtros.desde) q = q.gte('fecha_factura', filtros.desde)
     if (filtros.hasta) q = q.lte('fecha_factura', filtros.hasta)
     if (filtros.busqueda.trim()) {
-      const term = filtros.busqueda.trim().replace(/[%,]/g, '')
+      // En la sintaxis de filtros de PostgREST la coma separa condiciones y
+      // los parentesis agrupan, asi que un termino que los traiga (por
+      // ejemplo "FASTRO (SUC)") corrompe el or() entero. El % es comodin.
+      const term = filtros.busqueda.trim().replace(/[%,()]/g, '')
       q = q.or(
         `numero_factura.ilike.%${term}%,proveedor_nombre.ilike.%${term}%,cliente_nombre.ilike.%${term}%,proveedor_ruc.ilike.%${term}%,cliente_ruc.ilike.%${term}%`,
       )

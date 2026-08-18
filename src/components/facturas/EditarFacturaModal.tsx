@@ -230,7 +230,12 @@ export function EditarFacturaModal({
           <Combobox
             value={form.plan_cuenta_id}
             onChange={(v) => campo('plan_cuenta_id', v)}
-            options={planCuentas.map((c) => ({ value: c.id, label: `${c.cuenta} — ${c.denominacion}` }))}
+            // Solo cuentas asentables: las de nivel superior son titulos de
+            // rubro y no admiten asientos. Se deja pasar la ya elegida por si
+            // una factura vieja quedo con una.
+            options={planCuentas
+              .filter((c) => c.asentable || c.id === form.plan_cuenta_id)
+              .map((c) => ({ value: c.id, label: `${c.cuenta} — ${c.denominacion}` }))}
             placeholder="Buscar cuenta…"
           />
         </Field>

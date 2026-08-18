@@ -1,7 +1,20 @@
 /**
- * Tipos de la base, escritos a mano y espejados de supabase/migrations/001_schema.sql.
- * Si se toca una migracion, hay que tocar este archivo.
+ * Tipos de la base, escritos a mano.
+ *
+ * Se mantienen a mano y no generados porque afinan cosas que el generador no
+ * puede saber -- que `rol` es una union y no un string suelto, que
+ * `tipo_operacion` solo puede ser compra o venta -- y porque llevan los
+ * comentarios que explican para que sirve cada campo.
+ *
+ * El riesgo de eso es que una migracion los deje desactualizados en silencio,
+ * y ya paso: cuando plan_cuentas.codigo paso a llamarse cuenta quedo un
+ * .order('codigo') vivo en api/extraer.ts que hacia fallar la consulta sin
+ * tirar ningun error, y la IA se quedaba sin plan de cuentas. Por eso al
+ * final del archivo hay un chequeo contra el esquema real que convierte ese
+ * tipo de desfasaje en un error de compilacion.
  */
+
+import type { Database } from './database.generated'
 
 export type Rol = 'super_admin' | 'admin' | 'usuario'
 export type TipoOperacion = 'compra' | 'venta'
@@ -30,6 +43,7 @@ export interface UsoIA {
   id: string
   empresa_id: string
   contribuyente_id: string | null
+  usuario_id: string | null
   modelo: string | null
   tokens_prompt: number
   tokens_completion: number
@@ -53,6 +67,8 @@ export interface ConfiguracionIA {
   /** null = no se manda el parametro (modelos que no son gpt-5.x lo ignoran igual). */
   reasoning_effort: ReasoningEffort | null
   max_tokens: number
+  /** Tokens que un mismo usuario puede gastar por hora. null = sin tope. */
+  limite_tokens_usuario_hora: number | null
   updated_at: string
 }
 export type ConfiguracionIAUpdate = Partial<Omit<ConfiguracionIA, 'id' | 'updated_at'>>
@@ -185,3 +201,30 @@ export interface FacturaConRelaciones extends Factura {
   plan_cuentas: Pick<PlanCuenta, 'id' | 'cuenta' | 'denominacion'> | null
   factura_detalles?: FacturaDetalle[]
 }
+
+// ─────────────────────────────────────────────────────────────
+// Chequeo contra el esquema real (ver el comentario de arriba)
+//
+// No compara los tipos de cada campo -- eso romperia a proposito las uniones
+// afinadas de mas arriba -- sino los NOMBRES de las columnas, que es donde
+// estan los desfasajes que pasan desapercibidos: una columna renombrada o
+// borrada por una migracion deja de existir en el tipo generado y el build
+// falla nombrando la tabla.
+//
+// Para regenerar database.generated.ts despues de migrar: npm run tipos
+// ─────────────────────────────────────────────────────────────
+type Fila<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Row']
+type Afirmar<T extends true> = T
+type ColumnasExisten<Propio, EnLaBase> =
+  Extract<keyof Propio, string> extends Extract<keyof EnLaBase, string> ? true : false
+
+export type ChequeoDeEsquema = [
+  Afirmar<ColumnasExisten<Empresa, Fila<'empresas'>>>,
+  Afirmar<ColumnasExisten<Usuario, Fila<'usuarios'>>>,
+  Afirmar<ColumnasExisten<Contribuyente, Fila<'contribuyentes'>>>,
+  Afirmar<ColumnasExisten<PlanCuenta, Fila<'plan_cuentas'>>>,
+  Afirmar<ColumnasExisten<Factura, Fila<'facturas'>>>,
+  Afirmar<ColumnasExisten<FacturaDetalle, Fila<'factura_detalles'>>>,
+  Afirmar<ColumnasExisten<UsoIA, Fila<'uso_ia'>>>,
+  Afirmar<ColumnasExisten<ConfiguracionIA, Fila<'configuracion_ia'>>>,
+]

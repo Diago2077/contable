@@ -1,4 +1,4 @@
-import { AlertCircle, AlertTriangle, ArrowLeft, CheckCircle2, Loader2, UploadCloud } from 'lucide-react'
+import { AlertCircle, AlertTriangle, ArrowLeft, CheckCircle2, Loader2, RotateCcw, UploadCloud } from 'lucide-react'
 import { useRef, useState, type ChangeEvent, type DragEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -28,6 +28,26 @@ interface ItemLote {
 
 function idAleatorio() {
   return Math.random().toString(36).slice(2, 10)
+}
+
+/**
+ * Cuantas facturas se extraen a la vez. Secuencial hacia arriba se hacia muy
+ * largo (a ~8 s por factura, un lote de 20 son casi tres minutos), y subirlo
+ * mucho tampoco conviene: las primeras llamadas de la tanda salen antes de
+ * que OpenAI tenga cacheado el prefijo del prompt, asi que a mas paralelismo
+ * mas veces se paga el prompt entero.
+ */
+const CONCURRENCIA = 3
+
+/** Corre la tarea sobre todos los items, pero nunca mas de `limite` a la vez. */
+async function enTandas<T>(items: T[], limite: number, tarea: (item: T) => Promise<void>) {
+  let siguiente = 0
+  const trabajadores = Array.from({ length: Math.min(limite, items.length) }, async () => {
+    while (siguiente < items.length) {
+      await tarea(items[siguiente++])
+    }
+  })
+  await Promise.all(trabajadores)
 }
 
 export default function CargarFacturas() {
@@ -72,24 +92,33 @@ export default function CargarFacturas() {
     }))
     setItems((prev) => [...prev, ...nuevos])
     setProcesando(true)
+    await enTandas(nuevos, CONCURRENCIA, procesarItem)
+    setProcesando(false)
+  }
 
-    for (const item of nuevos) {
-      actualizarItem(item.id, { estado: 'extrayendo' })
-      try {
-        const { base64, mime, previewDataUrl, paginas } = await prepararParaExtraccion(item.archivo)
-        actualizarItem(item.id, { previewSrc: previewDataUrl, paginas })
+  /** Prepara la imagen y la manda a extraer. Sirve igual para el reintento. */
+  async function procesarItem(item: ItemLote) {
+    if (!contribuyenteId) return
+    actualizarItem(item.id, { estado: 'extrayendo', error: undefined })
+    try {
+      const { base64, mime, previewDataUrl, paginas } = await prepararParaExtraccion(item.archivo)
+      actualizarItem(item.id, { previewSrc: previewDataUrl, paginas })
 
-        const { datos, error } = await extraer(contribuyenteId, base64, mime)
-        if (error || !datos) {
-          actualizarItem(item.id, { estado: 'error', error: error ?? 'No se pudo leer la factura.' })
-          continue
-        }
-        actualizarItem(item.id, { estado: 'listo', form: extraccionAFormState(datos), extraccionRaw: datos })
-      } catch {
-        actualizarItem(item.id, { estado: 'error', error: 'No se pudo procesar el archivo.' })
+      const { datos, error } = await extraer(contribuyenteId, base64, mime)
+      if (error || !datos) {
+        actualizarItem(item.id, { estado: 'error', error: error ?? 'No se pudo leer la factura.' })
+        return
       }
+      actualizarItem(item.id, { estado: 'listo', form: extraccionAFormState(datos), extraccionRaw: datos })
+    } catch {
+      actualizarItem(item.id, { estado: 'error', error: 'No se pudo procesar el archivo.' })
     }
+  }
 
+  /** El archivo sigue en memoria, asi que reintentar no obliga a subirlo de nuevo. */
+  async function onReintentar(item: ItemLote) {
+    setProcesando(true)
+    await procesarItem(item)
     setProcesando(false)
   }
 
@@ -253,6 +282,7 @@ export default function CargarFacturas() {
                 onCambiar={(cambios) => actualizarItem(item.id, (it) => ({ form: { ...it.form!, ...cambios } }))}
                 onDescartar={() => actualizarItem(item.id, { estado: 'descartado' })}
                 onRestaurar={() => actualizarItem(item.id, { estado: 'listo' })}
+                onReintentar={() => onReintentar(item)}
               />
             ))}
           </div>
@@ -268,12 +298,14 @@ function ItemLoteRow({
   onCambiar,
   onDescartar,
   onRestaurar,
+  onReintentar,
 }: {
   item: ItemLote
   planCuentas: ReturnType<typeof usePlanCuentas>['data']
   onCambiar: (cambios: Partial<FacturaFormState>) => void
   onDescartar: () => void
   onRestaurar: () => void
+  onReintentar: () => void
 }) {
   if (item.estado === 'pendiente' || item.estado === 'extrayendo') {
     return (
@@ -291,6 +323,9 @@ function ItemLoteRow({
         <div className="flex items-center gap-2">
           <AlertCircle className="size-4 shrink-0 text-destructive" />
           <span className="truncate text-sm font-medium text-foreground">{item.archivo.name}</span>
+          <Button variant="ghost" size="sm" className="ml-auto shrink-0" onClick={onReintentar}>
+            <RotateCcw /> Reintentar
+          </Button>
         </div>
         <p className="mt-1 text-xs text-destructive">{item.error}</p>
       </div>
