@@ -52,6 +52,36 @@ export function usePlanCuentas(contribuyenteId: string | undefined) {
     return { insertadas: count ?? filas.length, error: null }
   }
 
+  /**
+   * Copia el plan de cuentas de otro contribuyente del mismo estudio. Saltea
+   * las cuentas que este ya tenga, asi que tambien sirve para completar uno a
+   * medio cargar sin duplicar nada.
+   */
+  async function clonarDesde(origenId: string, empresaId: string) {
+    if (!contribuyenteId) return { insertadas: 0, omitidas: 0, error: 'Falta el contribuyente.' }
+
+    const { data: origen, error: errOrigen } = await supabase
+      .from('plan_cuentas')
+      .select('cuenta, denominacion, nivel, naturaleza, asentable, centro_costo, moneda, tipo_cambio, cuenta_sset, activo')
+      .eq('contribuyente_id', origenId)
+
+    if (errOrigen) return { insertadas: 0, omitidas: 0, error: 'No se pudo leer el plan de cuentas de origen.' }
+    if (!origen || origen.length === 0) {
+      return { insertadas: 0, omitidas: 0, error: 'Ese contribuyente no tiene plan de cuentas cargado.' }
+    }
+
+    const existentes = new Set(estado.data.map((c) => c.cuenta))
+    const filas = origen
+      .filter((c) => !existentes.has(c.cuenta as string))
+      .map((c) => ({ ...c, empresa_id: empresaId, contribuyente_id: contribuyenteId }))
+
+    if (filas.length === 0) return { insertadas: 0, omitidas: origen.length, error: null }
+
+    const { error } = await supabase.from('plan_cuentas').insert(filas as PlanCuentaInsert[])
+    if (error) return { insertadas: 0, omitidas: 0, error: 'No se pudieron copiar las cuentas.' }
+    return { insertadas: filas.length, omitidas: origen.length - filas.length, error: null }
+  }
+
   async function actualizar(id: string, payload: PlanCuentaUpdate) {
     const { error } = await supabase.from('plan_cuentas').update(payload).eq('id', id)
     if (error) {
@@ -71,5 +101,5 @@ export function usePlanCuentas(contribuyenteId: string | undefined) {
     return { error: null }
   }
 
-  return { ...estado, refetch, crear, crearVarias, actualizar, eliminar }
+  return { ...estado, refetch, crear, crearVarias, clonarDesde, actualizar, eliminar }
 }

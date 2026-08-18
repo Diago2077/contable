@@ -1,4 +1,4 @@
-import { FileSpreadsheet, Plus, Search, Trash2, Upload } from 'lucide-react'
+import { Copy, FileSpreadsheet, Plus, Search, Trash2, Upload } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Cargando, ErrorBox, Vacio } from '@/components/ui/estado'
 import { Field, Input, Select } from '@/components/ui/field'
 import { ConfirmModal, Modal } from '@/components/ui/modal'
+import { useContribuyentes } from '@/hooks/useContribuyentes'
 import { usePlanCuentas } from '@/hooks/usePlanCuentas'
 import type { Naturaleza, PlanCuenta } from '@/lib/database.types'
 import { leerTextoArchivo, parseCsv } from '@/lib/csv'
@@ -32,11 +33,12 @@ export function PlanCuentasTab({
   contribuyenteId: string
   empresaId: string
 }) {
-  const { data, loading, error, refetch, crear, crearVarias, actualizar, eliminar } =
+  const { data, loading, error, refetch, crear, crearVarias, clonarDesde, actualizar, eliminar } =
     usePlanCuentas(contribuyenteId)
 
   const [modalCuenta, setModalCuenta] = useState<PlanCuenta | 'nueva' | null>(null)
   const [modalEliminar, setModalEliminar] = useState<PlanCuenta | null>(null)
+  const [modalClonar, setModalClonar] = useState(false)
   const [busqueda, setBusqueda] = useState('')
   const inputArchivo = useRef<HTMLInputElement>(null)
   const [importando, setImportando] = useState(false)
@@ -119,6 +121,9 @@ export function PlanCuentasTab({
             className="hidden"
             onChange={onImportarArchivo}
           />
+          <Button variant="outline" size="sm" onClick={() => setModalClonar(true)}>
+            <Copy /> Copiar de otro
+          </Button>
           <Button variant="outline" size="sm" onClick={() => inputArchivo.current?.click()} disabled={importando}>
             <Upload /> {importando ? 'Importando…' : 'Importar CSV o Excel'}
           </Button>
@@ -254,7 +259,108 @@ export function PlanCuentasTab({
           setModalEliminar(null)
         }}
       />
+
+      <ClonarModal
+        abierto={modalClonar}
+        contribuyenteId={contribuyenteId}
+        empresaId={empresaId}
+        clonarDesde={clonarDesde}
+        onCerrar={() => setModalClonar(false)}
+        onClonado={() => {
+          setModalClonar(false)
+          refetch()
+        }}
+      />
     </div>
+  )
+}
+
+/** Copia el plan de cuentas de otro contribuyente del estudio. */
+function ClonarModal({
+  abierto,
+  contribuyenteId,
+  empresaId,
+  clonarDesde,
+  onCerrar,
+  onClonado,
+}: {
+  abierto: boolean
+  contribuyenteId: string
+  empresaId: string
+  clonarDesde: (origenId: string, empresaId: string) => Promise<{ insertadas: number; omitidas: number; error: string | null }>
+  onCerrar: () => void
+  onClonado: () => void
+}) {
+  const { data: contribuyentes, loading } = useContribuyentes()
+  const [origen, setOrigen] = useState('')
+  const [copiando, setCopiando] = useState(false)
+
+  const candidatos = useMemo(
+    () => contribuyentes.filter((c) => c.id !== contribuyenteId),
+    [contribuyentes, contribuyenteId],
+  )
+
+  useEffect(() => {
+    if (!abierto) setOrigen('')
+  }, [abierto])
+
+  async function onConfirmar() {
+    if (!origen) return
+    setCopiando(true)
+    const { insertadas, omitidas, error: err } = await clonarDesde(origen, empresaId)
+    setCopiando(false)
+    if (err) {
+      toast.error(err)
+      return
+    }
+    if (insertadas === 0) {
+      toast.info('No habia cuentas nuevas para copiar: este contribuyente ya las tiene todas.')
+    } else {
+      toast.success(
+        `${insertadas} ${insertadas === 1 ? 'cuenta copiada' : 'cuentas copiadas'}` +
+          (omitidas > 0 ? ` (${omitidas} ya existian y se omitieron)` : ''),
+      )
+    }
+    onClonado()
+  }
+
+  return (
+    <Modal
+      abierto={abierto}
+      titulo="Copiar plan de cuentas"
+      onCerrar={onCerrar}
+      footer={
+        <>
+          <Button variant="outline" onClick={onCerrar} disabled={copiando}>
+            Cancelar
+          </Button>
+          <Button onClick={onConfirmar} disabled={!origen || copiando}>
+            {copiando ? 'Copiando…' : 'Copiar'}
+          </Button>
+        </>
+      }
+    >
+      <p className="mb-4 text-sm text-muted-foreground">
+        Se copian las cuentas de otro contribuyente del estudio. Las que este ya tenga con el mismo numero se
+        saltean, asi que podes usarlo tambien para completar un plan a medio cargar.
+      </p>
+      {loading ? (
+        <Cargando />
+      ) : candidatos.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No hay otro contribuyente cargado para copiar.</p>
+      ) : (
+        <Field label="Copiar desde">
+          <Select value={origen} onChange={(e) => setOrigen(e.target.value)}>
+            <option value="">Elegi un contribuyente…</option>
+            {candidatos.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.razon_social}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      )}
+    </Modal>
   )
 }
 
