@@ -9,7 +9,7 @@ import { MontoInput } from '@/components/ui/monto-input'
 import type { PlanCuenta } from '@/lib/database.types'
 import { MONEDAS } from '@/lib/database.types'
 import type { FacturaFormState } from '@/lib/extraccion'
-import { totalCalculado } from '@/lib/extraccion'
+import { ivaNoCierra, totalCalculado } from '@/lib/extraccion'
 import { parseMonto, rucSospechoso } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -19,6 +19,8 @@ export function RevisionFacturaCard({
   form,
   descartada,
   planCuentas,
+  ivaRecalculado,
+  paginasPdf,
   onCambiar,
   onDescartar,
   onRestaurar,
@@ -28,6 +30,8 @@ export function RevisionFacturaCard({
   form: FacturaFormState
   descartada: boolean
   planCuentas: PlanCuenta[]
+  ivaRecalculado?: boolean
+  paginasPdf?: number
   onCambiar: (cambios: Partial<FacturaFormState>) => void
   onDescartar: () => void
   onRestaurar: () => void
@@ -86,6 +90,25 @@ export function RevisionFacturaCard({
           </div>
 
           <div className="min-w-0 flex-1 space-y-5">
+            {(ivaRecalculado || (paginasPdf ?? 1) > 1) && (
+              <div className="space-y-2">
+                {ivaRecalculado && (
+                  <p className="flex items-start gap-1.5 text-xs text-warning">
+                    <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                    El IVA que leyo la IA no cuadraba con las gravadas y se recalculo. Verifica los montos contra
+                    la imagen.
+                  </p>
+                )}
+                {(paginasPdf ?? 1) > 1 && (
+                  <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                    <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                    El PDF tiene {paginasPdf} paginas y solo se leyo la primera. El archivo completo se guarda
+                    igual.
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Tipo de operacion */}
             <div className="flex gap-2">
               {(['compra', 'venta'] as const).map((t) => (
@@ -222,7 +245,7 @@ export function RevisionFacturaCard({
                     className="tabular"
                   />
                 </Field>
-                <Field label="IVA 5%">
+                <Field label="IVA 5%" warning={ivaNoCierra(form, 5) ? 'No es la 21ava parte de gravadas 5%' : undefined}>
                   <MontoInput
                     value={form.iva_5}
                     onChange={(v) => campo('iva_5', v)}
@@ -238,7 +261,7 @@ export function RevisionFacturaCard({
                     className="tabular"
                   />
                 </Field>
-                <Field label="IVA 10%">
+                <Field label="IVA 10%" warning={ivaNoCierra(form, 10) ? 'No es la 11ava parte de gravadas 10%' : undefined}>
                   <MontoInput
                     value={form.iva_10}
                     onChange={(v) => campo('iva_10', v)}

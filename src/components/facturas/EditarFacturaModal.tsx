@@ -9,7 +9,13 @@ import { Modal } from '@/components/ui/modal'
 import { MontoInput } from '@/components/ui/monto-input'
 import type { FacturaConRelaciones, PlanCuenta } from '@/lib/database.types'
 import { MONEDAS } from '@/lib/database.types'
-import { facturaAFormState, formStateAFacturaUpdate, totalCalculado, type FacturaFormState } from '@/lib/extraccion'
+import {
+  facturaAFormState,
+  formStateAFacturaUpdate,
+  ivaNoCierra,
+  totalCalculado,
+  type FacturaFormState,
+} from '@/lib/extraccion'
 import { parseMonto, rucSospechoso } from '@/lib/format'
 import { urlFirmada } from '@/lib/storage'
 import { cn } from '@/lib/utils'
@@ -182,7 +188,7 @@ export function EditarFacturaModal({
                 className="tabular"
               />
             </Field>
-            <Field label="IVA 5%">
+            <Field label="IVA 5%" warning={ivaNoCierra(form, 5) ? 'No es la 21ava parte de gravadas 5%' : undefined}>
               <MontoInput
                 value={form.iva_5}
                 onChange={(v) => campo('iva_5', v)}
@@ -198,7 +204,7 @@ export function EditarFacturaModal({
                 className="tabular"
               />
             </Field>
-            <Field label="IVA 10%">
+            <Field label="IVA 10%" warning={ivaNoCierra(form, 10) ? 'No es la 11ava parte de gravadas 10%' : undefined}>
               <MontoInput
                 value={form.iva_10}
                 onChange={(v) => campo('iva_10', v)}

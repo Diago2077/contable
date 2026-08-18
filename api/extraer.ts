@@ -18,13 +18,29 @@ import { conManejoDeErrores, error, exigeMetodo, leerBody, type ApiHandler } fro
 // en la tabla configuracion_ia (editable por el super_admin desde
 // /admindrpcs), no hardcodeados aca. Esto es solo el respaldo por si esa
 // fila no existiera por algun motivo (no deberia pasar, la migracion la crea).
-const CONFIG_POR_DEFECTO: { modelo: string; precio_input_por_1m: number; precio_output_por_1m: number; reasoning_effort: string | null; max_tokens: number } = {
+const CONFIG_POR_DEFECTO: {
+  modelo: string
+  precio_input_por_1m: number
+  precio_output_por_1m: number
+  precio_cache_por_1m: number
+  reasoning_effort: string | null
+  max_tokens: number
+} = {
   modelo: 'gpt-4o',
   precio_input_por_1m: 2.5,
   precio_output_por_1m: 10,
+  precio_cache_por_1m: 1.25,
   reasoning_effort: null,
   max_tokens: 2500,
 }
+
+/**
+ * Tope del largo de la imagen en base64. Vercel ya corta el request en 4,5 MB
+ * antes de que corra esta funcion, pero el limite conviene tenerlo escrito
+ * aca y no delegado a un detalle de la plataforma. El cliente manda JPEG
+ * reducido a 1600 px de lado, que queda muy por debajo.
+ */
+const MAXIMO_BASE64 = 4 * 1024 * 1024
 
 interface Body {
   contribuyente_id?: string
@@ -143,6 +159,16 @@ ${
 }`
 }
 
+/**
+ * En una factura paraguaya las columnas gravadas vienen con el IVA incluido,
+ * asi que el impuesto no hace falta leerlo: se deduce. Sobre el 10% es la
+ * onceava parte del monto (P - P/1,1 = P/11) y sobre el 5%, la veintiunava.
+ */
+function ivaDeGravado(gravado: number, tasa: 5 | 10): number {
+  const exacto = tasa === 10 ? gravado / 11 : gravado / 21
+  return Math.round(exacto * 100) / 100
+}
+
 const handler: ApiHandler = async (req, res) => {
   if (!exigeMetodo(req, res, 'POST')) return
 
@@ -152,6 +178,9 @@ const handler: ApiHandler = async (req, res) => {
   const body = leerBody<Body>(req)
   if (!body.contribuyente_id) return error(res, 400, 'Falta el contribuyente.')
   if (!body.imagen_base64) return error(res, 400, 'Falta la imagen.')
+  if (body.imagen_base64.length > MAXIMO_BASE64) {
+    return error(res, 413, 'La imagen es demasiado pesada. Proba con una foto de menor resolucion.')
+  }
 
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) return error(res, 500, 'El servidor no tiene configurada la extraccion por IA.')
@@ -266,7 +295,12 @@ const handler: ApiHandler = async (req, res) => {
 
     const json = (await respuesta.json()) as {
       choices?: Array<{ message?: { content?: string } }>
-      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
+      usage?: {
+        prompt_tokens?: number
+        completion_tokens?: number
+        total_tokens?: number
+        prompt_tokens_details?: { cached_tokens?: number }
+      }
     }
     const contenido = json.choices?.[0]?.message?.content
     if (!contenido) return error(res, 502, 'La IA no devolvio ningun resultado.')
@@ -274,8 +308,20 @@ const handler: ApiHandler = async (req, res) => {
     const tokensPrompt = json.usage?.prompt_tokens ?? 0
     const tokensCompletion = json.usage?.completion_tokens ?? 0
     const tokensTotal = json.usage?.total_tokens ?? tokensPrompt + tokensCompletion
+
+    // OpenAI cachea el prefijo de los prompts largos y lo cobra a mitad de
+    // precio. El listado del plan de cuentas va al principio y la imagen al
+    // final, asi que en un lote del mismo contribuyente el prefijo se repite
+    // y el descuento aplica solo. Contarlo aparte es lo que hace que el costo
+    // que muestra el panel sea el real y no uno inflado.
+    const tokensCache = Math.min(json.usage?.prompt_tokens_details?.cached_tokens ?? 0, tokensPrompt)
+    const tokensPromptPlenos = tokensPrompt - tokensCache
+
     const costoUsd =
-      (tokensPrompt * config.precio_input_por_1m + tokensCompletion * config.precio_output_por_1m) / 1_000_000
+      (tokensPromptPlenos * config.precio_input_por_1m +
+        tokensCache * config.precio_cache_por_1m +
+        tokensCompletion * config.precio_output_por_1m) /
+      1_000_000
 
     // Se espera el insert (aunque un fallo aca no corta la respuesta): en el
     // runtime serverless de Vercel, una promesa disparada sin await puede no
@@ -288,6 +334,7 @@ const handler: ApiHandler = async (req, res) => {
       tokens_prompt: tokensPrompt,
       tokens_completion: tokensCompletion,
       tokens_total: tokensTotal,
+      tokens_cache: tokensCache,
       costo_usd: costoUsd,
     })
     if (errUso) console.error('No se pudo registrar el uso de IA', errUso)
@@ -299,6 +346,23 @@ const handler: ApiHandler = async (req, res) => {
     if (datos.plan_cuenta_id != null) {
       const indice = Number(datos.plan_cuenta_id)
       datos.plan_cuenta_id = Number.isInteger(indice) ? (planCuentas?.[indice]?.id ?? null) : null
+    }
+
+    // Se respeta el IVA que leyo el modelo mientras cuadre con las gravadas
+    // -- asi el monto queda igual al impreso, que es contra lo que el
+    // contador compara, incluido el redondeo que haya hecho quien emitio la
+    // factura. Si no cuadra, se corrige con el calculo y se avisa: una
+    // diferencia real suele significar que leyo mal alguno de los dos.
+    const tasas = [
+      { iva: 'iva_10', gravado: 'gravado_10', tasa: 10 as const },
+      { iva: 'iva_5', gravado: 'gravado_5', tasa: 5 as const },
+    ]
+    for (const { iva, gravado, tasa } of tasas) {
+      const esperado = ivaDeGravado(Number(datos[gravado]) || 0, tasa)
+      if (Math.abs((Number(datos[iva]) || 0) - esperado) > 1) {
+        datos[iva] = esperado
+        datos.iva_recalculado = true
+      }
     }
 
     res.status(200).json({ ok: true, datos })

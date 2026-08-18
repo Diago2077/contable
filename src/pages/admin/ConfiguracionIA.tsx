@@ -12,6 +12,7 @@ interface Form {
   modelo: string
   precioInput: string
   precioOutput: string
+  precioCache: string
   reasoningEffort: '' | ReasoningEffort
   maxTokens: string
 }
@@ -30,6 +31,7 @@ export default function ConfiguracionIA() {
       modelo: config.modelo,
       precioInput: String(config.precio_input_por_1m),
       precioOutput: String(config.precio_output_por_1m),
+      precioCache: String(config.precio_cache_por_1m),
       reasoningEffort: config.reasoning_effort ?? '',
       maxTokens: String(config.max_tokens),
     })
@@ -46,9 +48,11 @@ export default function ConfiguracionIA() {
 
     const precioInput = Number(form.precioInput)
     const precioOutput = Number(form.precioOutput)
+    const precioCache = Number(form.precioCache)
     const maxTokens = Number(form.maxTokens)
     if (!Number.isFinite(precioInput) || precioInput < 0) return setErrorForm('El precio de input no es valido.')
     if (!Number.isFinite(precioOutput) || precioOutput < 0) return setErrorForm('El precio de output no es valido.')
+    if (!Number.isFinite(precioCache) || precioCache < 0) return setErrorForm('El precio de cache no es valido.')
     if (!Number.isInteger(maxTokens) || maxTokens < 1) return setErrorForm('max_tokens no es valido.')
 
     setGuardando(true)
@@ -57,6 +61,7 @@ export default function ConfiguracionIA() {
       modelo: form.modelo.trim(),
       precio_input_por_1m: precioInput,
       precio_output_por_1m: precioOutput,
+      precio_cache_por_1m: precioCache,
       reasoning_effort: form.reasoningEffort || null,
       max_tokens: maxTokens,
     })
@@ -137,6 +142,19 @@ export default function ConfiguracionIA() {
               />
             </Field>
           </div>
+
+          <Field
+            label="Precio cache (USD / 1M tokens) *"
+            hint="OpenAI reusa el prefijo de los prompts largos y lo cobra mas barato. En gpt-4o es la mitad del input."
+          >
+            <Input
+              type="number"
+              min={0}
+              step="0.01"
+              value={form.precioCache}
+              onChange={(e) => campo('precioCache', e.target.value)}
+            />
+          </Field>
 
           <div className="grid grid-cols-2 gap-3">
             <Field

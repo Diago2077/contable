@@ -15,6 +15,7 @@ const MESES = [
 interface Totales {
   facturas: number
   tokens: number
+  tokensCache: number
   costoUsd: number
 }
 
@@ -25,6 +26,7 @@ interface FilaUso {
   tokens_prompt: number
   tokens_completion: number
   tokens_total: number
+  tokens_cache: number
   costo_usd: number
   contribuyente: { razon_social: string } | null
 }
@@ -57,7 +59,7 @@ export function ConsumoIA({
 
     supabase
       .from('uso_ia')
-      .select('id, created_at, modelo, tokens_prompt, tokens_completion, tokens_total, costo_usd, contribuyente:contribuyentes(razon_social)')
+      .select('id, created_at, modelo, tokens_prompt, tokens_completion, tokens_total, tokens_cache, costo_usd, contribuyente:contribuyentes(razon_social)')
       .eq('empresa_id', empresaId)
       .gte('created_at', inicio)
       .lt('created_at', fin)
@@ -69,6 +71,7 @@ export function ConsumoIA({
         setTotales({
           facturas: lista.length,
           tokens: lista.reduce((acc, f) => acc + f.tokens_total, 0),
+          tokensCache: lista.reduce((acc, f) => acc + (f.tokens_cache ?? 0), 0),
           costoUsd: lista.reduce((acc, f) => acc + Number(f.costo_usd), 0),
         })
         setCargando(false)
@@ -144,6 +147,18 @@ export function ConsumoIA({
             <p className="text-xs text-muted-foreground">Costo estimado</p>
             <p className="text-lg font-semibold tabular text-foreground">${formatMonto(totales.costoUsd, 'USD')}</p>
           </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Desde cache</p>
+            <p className="text-lg font-semibold tabular text-success">
+              {formatMonto(totales.tokensCache, 'PYG')}
+              {totales.tokens > 0 && (
+                <span className="text-xs font-normal text-muted-foreground">
+                  {' '}
+                  ({Math.round((totales.tokensCache / totales.tokens) * 100)}%)
+                </span>
+              )}
+            </p>
+          </div>
         </div>
       )}
 
@@ -156,6 +171,7 @@ export function ConsumoIA({
                 <th className="px-3 py-2 font-medium">Contribuyente</th>
                 <th className="px-3 py-2 font-medium">Modelo</th>
                 <th className="px-3 py-2 text-right font-medium">Prompt</th>
+                <th className="px-3 py-2 text-right font-medium">Cache</th>
                 <th className="px-3 py-2 text-right font-medium">Completion</th>
                 <th className="px-3 py-2 text-right font-medium">Costo</th>
               </tr>
@@ -167,6 +183,9 @@ export function ConsumoIA({
                   <td className="px-3 py-2 text-foreground">{f.contribuyente?.razon_social ?? '—'}</td>
                   <td className="px-3 py-2 text-muted-foreground">{f.modelo ?? '—'}</td>
                   <td className="px-3 py-2 text-right tabular text-foreground">{formatMonto(f.tokens_prompt, 'PYG')}</td>
+                  <td className="px-3 py-2 text-right tabular text-success">
+                    {f.tokens_cache ? formatMonto(f.tokens_cache, 'PYG') : '—'}
+                  </td>
                   <td className="px-3 py-2 text-right tabular text-foreground">{formatMonto(f.tokens_completion, 'PYG')}</td>
                   <td className="px-3 py-2 text-right tabular text-foreground">${formatMonto(f.costo_usd, 'USD')}</td>
                 </tr>

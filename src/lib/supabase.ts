@@ -40,6 +40,12 @@ export async function apiFetch<T>(path: string, body?: unknown): Promise<T> {
   try {
     json = texto ? JSON.parse(texto) : {}
   } catch {
+    // Vercel corta los requests que superan su limite de cuerpo antes de que
+    // llegue a correr la funcion, y contesta con HTML: no hay JSON que
+    // parsear ni mensaje propio que mostrar.
+    if (res.status === 413) {
+      throw new Error('La imagen es demasiado pesada. Proba con una foto de menor resolucion.')
+    }
     throw new Error(`Respuesta invalida del servidor (${res.status})`)
   }
 

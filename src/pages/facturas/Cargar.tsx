@@ -22,6 +22,8 @@ interface ItemLote {
   error?: string
   form?: FacturaFormState
   extraccionRaw?: ExtraccionIA
+  /** Paginas del PDF original: si son varias, solo se leyo la primera. */
+  paginas?: number
 }
 
 function idAleatorio() {
@@ -74,8 +76,8 @@ export default function CargarFacturas() {
     for (const item of nuevos) {
       actualizarItem(item.id, { estado: 'extrayendo' })
       try {
-        const { base64, mime, previewDataUrl } = await prepararParaExtraccion(item.archivo)
-        actualizarItem(item.id, { previewSrc: previewDataUrl })
+        const { base64, mime, previewDataUrl, paginas } = await prepararParaExtraccion(item.archivo)
+        actualizarItem(item.id, { previewSrc: previewDataUrl, paginas })
 
         const { datos, error } = await extraer(contribuyenteId, base64, mime)
         if (error || !datos) {
@@ -324,6 +326,8 @@ function ItemLoteRow({
       form={item.form}
       descartada={item.estado === 'descartado'}
       planCuentas={planCuentas}
+      ivaRecalculado={item.extraccionRaw?.iva_recalculado}
+      paginasPdf={item.paginas}
       onCambiar={onCambiar}
       onDescartar={onDescartar}
       onRestaurar={onRestaurar}

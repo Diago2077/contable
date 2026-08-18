@@ -34,6 +34,8 @@ export interface UsoIA {
   tokens_prompt: number
   tokens_completion: number
   tokens_total: number
+  /** Parte de tokens_prompt que vino del cache de OpenAI, facturada a mitad de precio. */
+  tokens_cache: number
   costo_usd: number
   created_at: string
 }
@@ -46,6 +48,8 @@ export interface ConfiguracionIA {
   modelo: string
   precio_input_por_1m: number
   precio_output_por_1m: number
+  /** Tokens de prompt servidos desde el cache de OpenAI; en gpt-4o, la mitad del input. */
+  precio_cache_por_1m: number
   /** null = no se manda el parametro (modelos que no son gpt-5.x lo ignoran igual). */
   reasoning_effort: ReasoningEffort | null
   max_tokens: number

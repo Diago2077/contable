@@ -33,6 +33,8 @@ export interface ExtraccionIA {
     subtotal_linea: number | null
     tasa_iva: number | null
   }>
+  /** Lo agrega el servidor, no la IA: el IVA leido no cuadraba con las gravadas. */
+  iva_recalculado?: boolean
 }
 
 /** Estado editable de la pantalla de revision. Todo texto: se parsea recien al guardar. */
@@ -176,6 +178,24 @@ export function formStateADetalles(form: FacturaFormState): Omit<FacturaDetalleI
 /** total = exentas + gravado_5 + gravado_10, para avisar si no cierra. */
 export function totalCalculado(form: FacturaFormState): number {
   return parseMonto(form.exentas) + parseMonto(form.gravado_5) + parseMonto(form.gravado_10)
+}
+
+/**
+ * Las columnas gravadas de una factura paraguaya vienen con el IVA incluido,
+ * asi que el impuesto se deduce: el 10% es la onceava parte del monto y el
+ * 5% la veintiunava.
+ */
+export function ivaDeGravado(gravado: number, tasa: 5 | 10): number {
+  const exacto = tasa === 10 ? gravado / 11 : gravado / 21
+  return Math.round(exacto * 100) / 100
+}
+
+/** Avisa si el IVA cargado dejo de corresponderse con las gravadas. */
+export function ivaNoCierra(form: FacturaFormState, tasa: 5 | 10): boolean {
+  const iva = tasa === 10 ? form.iva_10 : form.iva_5
+  const gravado = tasa === 10 ? form.gravado_10 : form.gravado_5
+  if (iva.trim() === '' && gravado.trim() === '') return false
+  return Math.abs(parseMonto(iva) - ivaDeGravado(parseMonto(gravado), tasa)) > 1
 }
 
 /** Factura ya guardada -> estado editable del formulario. Sin detalles: no se editan desde el listado. */
