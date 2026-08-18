@@ -24,6 +24,12 @@ export type CondicionVenta = 'contado' | 'credito'
 export const REGIMENES = ['IRE General', 'IRE SIMPLE', 'RESIMPLE', 'IRP', 'Solo IVA'] as const
 export const MONEDAS = ['PYG', 'USD', 'BRL', 'ARS', 'EUR'] as const
 
+export const ROL_LABEL: Record<Rol, string> = {
+  super_admin: 'Super admin',
+  admin: 'Admin',
+  usuario: 'Usuario',
+}
+
 export interface Empresa {
   id: string
   nombre: string

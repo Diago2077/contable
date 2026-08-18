@@ -1,24 +1,24 @@
-import { ArrowLeft, KeyRound, Pencil, Plus, Trash2, UserRound } from 'lucide-react'
+import { ArrowLeft, Pencil, Plus, UserRound } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ConsumoIA } from '@/components/admin/ConsumoIA'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Cargando, ErrorBox, Vacio } from '@/components/ui/estado'
-import { Field, Input, Select, Textarea } from '@/components/ui/field'
+import { Field, Input, Textarea } from '@/components/ui/field'
 import { ConfirmModal, Modal } from '@/components/ui/modal'
+import {
+  CambiarPasswordModal,
+  EditarUsuarioModal,
+  NuevoUsuarioModal,
+  UsuarioDetalleModal,
+} from '@/components/usuarios/UsuarioModales'
 import { useEmpresas } from '@/hooks/useEmpresas'
 import { useUsuarios } from '@/hooks/useUsuarios'
-import type { Empresa, EmpresaUpdate, Usuario } from '@/lib/database.types'
+import { ROL_LABEL, type Empresa, type EmpresaUpdate, type Usuario } from '@/lib/database.types'
 import { formatFecha, formatRuc } from '@/lib/format'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
-
-const ROL_LABEL: Record<Usuario['rol'], string> = {
-  super_admin: 'Super admin',
-  admin: 'Admin',
-  usuario: 'Usuario',
-}
 
 export default function EmpresaDetalle() {
   const { id } = useParams<{ id: string }>()
@@ -184,6 +184,7 @@ export default function EmpresaDetalle() {
       <NuevoUsuarioModal
         abierto={modalUsuario}
         empresaId={empresa.id}
+        permiteElegirRol
         onCerrar={() => setModalUsuario(false)}
         onCreado={() => {
           setModalUsuario(false)
@@ -222,6 +223,7 @@ export default function EmpresaDetalle() {
 
       <EditarUsuarioModal
         usuario={modalEditarUsuario}
+        permiteElegirRol
         onCerrar={() => setModalEditarUsuario(null)}
         onGuardado={() => {
           setModalEditarUsuario(null)
@@ -356,324 +358,3 @@ function EditarEmpresaModal({
   )
 }
 
-function NuevoUsuarioModal({
-  abierto,
-  empresaId,
-  onCerrar,
-  onCreado,
-  crear,
-}: {
-  abierto: boolean
-  empresaId: string
-  onCerrar: () => void
-  onCreado: () => void
-  crear: ReturnType<typeof useUsuarios>['crear']
-}) {
-  const [nombre, setNombre] = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [rol, setRol] = useState<'admin' | 'usuario'>('usuario')
-  const [error, setError] = useState<string | null>(null)
-  const [guardando, setGuardando] = useState(false)
-
-  useEffect(() => {
-    if (abierto) {
-      setNombre('')
-      setEmail('')
-      setPassword('')
-      setRol('usuario')
-      setError(null)
-    }
-  }, [abierto])
-
-  async function onGuardar() {
-    if (!nombre.trim() || !email.trim() || !password) {
-      setError('Completa todos los campos.')
-      return
-    }
-    setGuardando(true)
-    setError(null)
-    const { error: err } = await crear({
-      empresa_id: empresaId,
-      nombre: nombre.trim(),
-      email: email.trim(),
-      password,
-      rol,
-    })
-    setGuardando(false)
-    if (err) setError(err)
-    else {
-      toast.success('Usuario creado')
-      onCreado()
-    }
-  }
-
-  return (
-    <Modal
-      abierto={abierto}
-      titulo="Nuevo usuario"
-      onCerrar={onCerrar}
-      footer={
-        <>
-          <Button variant="outline" onClick={onCerrar} disabled={guardando}>
-            Cancelar
-          </Button>
-          <Button onClick={onGuardar} disabled={guardando}>
-            {guardando ? 'Creando…' : 'Crear usuario'}
-          </Button>
-        </>
-      }
-    >
-      <div className="space-y-4">
-        <Field label="Nombre *">
-          <Input
-            value={nombre}
-            onChange={(e) => setNombre(e.target.value)}
-            autoComplete="off"
-            autoFocus
-          />
-        </Field>
-        <Field label="Email *" hint="No repitas tu propio email: cada cuenta necesita uno distinto.">
-          <Input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="off"
-          />
-        </Field>
-        <Field label="Contrasena *" hint="Minimo 8 caracteres">
-          <Input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="new-password"
-          />
-        </Field>
-        <Field label="Rol">
-          <Select value={rol} onChange={(e) => setRol(e.target.value as 'admin' | 'usuario')}>
-            <option value="usuario">Usuario</option>
-            <option value="admin">Admin</option>
-          </Select>
-        </Field>
-        {error && <ErrorBox mensaje={error} />}
-      </div>
-    </Modal>
-  )
-}
-
-function UsuarioDetalleModal({
-  usuario,
-  onCerrar,
-  onEditar,
-  onCambiarPassword,
-  onEliminar,
-  onToggleActivo,
-}: {
-  usuario: Usuario | null
-  onCerrar: () => void
-  onEditar: () => void
-  onCambiarPassword: () => void
-  onEliminar: () => void
-  onToggleActivo: () => void
-}) {
-  if (!usuario) return null
-
-  return (
-    <Modal
-      abierto={usuario !== null}
-      titulo="Detalle de usuario"
-      onCerrar={onCerrar}
-      ancho="max-w-md"
-      footer={
-        <>
-          <Button variant="outline" onClick={onEliminar}>
-            <Trash2 className="text-destructive" /> Eliminar
-          </Button>
-          <Button variant="outline" onClick={onCambiarPassword}>
-            <KeyRound /> Contrasena
-          </Button>
-          <Button onClick={onEditar}>
-            <Pencil /> Editar
-          </Button>
-        </>
-      }
-    >
-      <div className="space-y-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold text-foreground">{usuario.nombre}</h2>
-            <p className="text-sm text-muted-foreground">{usuario.email}</p>
-          </div>
-          <button onClick={onToggleActivo}>
-            <Badge tono={usuario.activo ? 'success' : 'neutral'}>
-              {usuario.activo ? 'Activo' : 'Inactivo'}
-            </Badge>
-          </button>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <p className="text-xs text-muted-foreground">Rol</p>
-            <p className="text-foreground">{ROL_LABEL[usuario.rol]}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Alta</p>
-            <p className="text-foreground">{formatFecha(usuario.created_at)}</p>
-          </div>
-        </div>
-
-        <p className="text-xs text-muted-foreground">
-          Tocá el estado para {usuario.activo ? 'desactivarlo' : 'activarlo'}.
-        </p>
-      </div>
-    </Modal>
-  )
-}
-
-function EditarUsuarioModal({
-  usuario,
-  onCerrar,
-  onGuardado,
-  editar,
-}: {
-  usuario: Usuario | null
-  onCerrar: () => void
-  onGuardado: () => void
-  editar: ReturnType<typeof useUsuarios>['editar']
-}) {
-  const [nombre, setNombre] = useState('')
-  const [email, setEmail] = useState('')
-  const [rol, setRol] = useState<'admin' | 'usuario'>('usuario')
-  const [error, setError] = useState<string | null>(null)
-  const [guardando, setGuardando] = useState(false)
-
-  useEffect(() => {
-    if (!usuario) return
-    setNombre(usuario.nombre)
-    setEmail(usuario.email)
-    setRol(usuario.rol === 'admin' ? 'admin' : 'usuario')
-    setError(null)
-  }, [usuario])
-
-  async function onGuardar() {
-    if (!usuario) return
-    if (!nombre.trim() || !email.trim()) {
-      setError('Completa todos los campos.')
-      return
-    }
-    setGuardando(true)
-    setError(null)
-    const { error: err } = await editar({
-      id: usuario.id,
-      nombre: nombre.trim(),
-      email: email.trim(),
-      rol,
-    })
-    setGuardando(false)
-    if (err) setError(err)
-    else {
-      toast.success('Usuario actualizado')
-      onGuardado()
-    }
-  }
-
-  return (
-    <Modal
-      abierto={usuario !== null}
-      titulo={`Editar usuario — ${usuario?.nombre ?? ''}`}
-      onCerrar={onCerrar}
-      footer={
-        <>
-          <Button variant="outline" onClick={onCerrar} disabled={guardando}>
-            Cancelar
-          </Button>
-          <Button onClick={onGuardar} disabled={guardando}>
-            {guardando ? 'Guardando…' : 'Guardar'}
-          </Button>
-        </>
-      }
-    >
-      <div className="space-y-4">
-        <Field label="Nombre *">
-          <Input value={nombre} onChange={(e) => setNombre(e.target.value)} autoFocus />
-        </Field>
-        <Field label="Email *" hint="Es el email con el que inicia sesion: cambiarlo cambia su login.">
-          <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-        </Field>
-        <Field label="Rol">
-          <Select value={rol} onChange={(e) => setRol(e.target.value as 'admin' | 'usuario')}>
-            <option value="usuario">Usuario</option>
-            <option value="admin">Admin</option>
-          </Select>
-        </Field>
-        {error && <ErrorBox mensaje={error} />}
-      </div>
-    </Modal>
-  )
-}
-
-function CambiarPasswordModal({
-  usuario,
-  onCerrar,
-  cambiarPassword,
-}: {
-  usuario: Usuario | null
-  onCerrar: () => void
-  cambiarPassword: ReturnType<typeof useUsuarios>['cambiarPassword']
-}) {
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [guardando, setGuardando] = useState(false)
-
-  useEffect(() => {
-    setPassword('')
-    setError(null)
-  }, [usuario])
-
-  async function onGuardar() {
-    if (!usuario) return
-    if (password.length < 8) {
-      setError('Minimo 8 caracteres.')
-      return
-    }
-    setGuardando(true)
-    const { error: err } = await cambiarPassword(usuario.id, password)
-    setGuardando(false)
-    if (err) setError(err)
-    else {
-      toast.success('Contrasena actualizada')
-      onCerrar()
-    }
-  }
-
-  return (
-    <Modal
-      abierto={usuario !== null}
-      titulo={`Cambiar contrasena — ${usuario?.nombre ?? ''}`}
-      onCerrar={onCerrar}
-      ancho="max-w-sm"
-      footer={
-        <>
-          <Button variant="outline" onClick={onCerrar} disabled={guardando}>
-            Cancelar
-          </Button>
-          <Button onClick={onGuardar} disabled={guardando}>
-            {guardando ? 'Guardando…' : 'Cambiar'}
-          </Button>
-        </>
-      }
-    >
-      <div className="space-y-4">
-        <Field label="Nueva contrasena" hint="Minimo 8 caracteres">
-          <Input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoFocus
-          />
-        </Field>
-        {error && <ErrorBox mensaje={error} />}
-      </div>
-    </Modal>
-  )
-}
