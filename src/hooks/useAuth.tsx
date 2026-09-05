@@ -46,14 +46,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Evita que una carga de perfil vieja pise a una nueva al cambiar de sesion
   const cargaActual = useRef(0)
 
-  const cargarPerfil = useCallback(async (userId: string | undefined) => {
+  /**
+   * Devuelve si esta carga seguia siendo la vigente al terminar (su token no
+   * fue superado por otra carga mas nueva). Al montar la app se disparan dos
+   * cargas casi simultaneas para el mismo usuario -- el INITIAL_SESSION que
+   * emite onAuthStateChange al suscribirse, y el getSession() inicial -- y
+   * sin este valor el llamador perdedor apagaba el loading igual, con perfil
+   * todavia en null: el guard de un layout (ej. SuperAdminLayout) llegaba a
+   * ver loading=false + perfil=null y redirigia por creer que no habia
+   * sesion, justo antes de que la carga ganadora escribiera el perfil real.
+   * Pasaba siempre entrando por URL directa o F5 (remonta el provider) y
+   * nunca navegando con los links (el provider ya esta montado).
+   */
+  const cargarPerfil = useCallback(async (userId: string | undefined): Promise<boolean> => {
     const token = ++cargaActual.current
 
     if (!userId) {
       setPerfil(null)
       setEmpresa(null)
       setProblemaPerfil(null)
-      return
+      return true
     }
 
     const { data: fila, error } = await supabase
@@ -62,13 +74,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq('id', userId)
       .maybeSingle()
 
-    if (token !== cargaActual.current) return
+    if (token !== cargaActual.current) return false
 
     if (error || !fila) {
       setPerfil(null)
       setEmpresa(null)
       setProblemaPerfil('sin-perfil')
-      return
+      return true
     }
 
     const usuario = fila as Usuario
@@ -76,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setPerfil(usuario)
       setEmpresa(null)
       setProblemaPerfil('inactivo')
-      return
+      return true
     }
 
     setPerfil(usuario)
@@ -88,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .select('*')
         .eq('id', usuario.empresa_id)
         .maybeSingle()
-      if (token !== cargaActual.current) return
+      if (token !== cargaActual.current) return false
 
       // La RLS de `empresas` esconde la fila si el estudio esta inactivo
       // (mi_empresa_id() no lo reconoce mientras dure eso): que la fila no
@@ -96,12 +108,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!emp) {
         setEmpresa(null)
         setProblemaPerfil('empresa-inactiva')
-        return
+        return true
       }
       setEmpresa(emp as Empresa)
     } else {
       setEmpresa(null)
     }
+    return true
   }, [])
 
   useEffect(() => {
@@ -119,8 +132,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!vivo) return
       usuarioIdAnterior.current = data.session?.user?.id
       setSession(data.session)
-      await cargarPerfil(data.session?.user?.id)
-      if (vivo) setLoading(false)
+      const vigente = await cargarPerfil(data.session?.user?.id)
+      if (vivo && vigente) setLoading(false)
     })
 
     const {
@@ -134,8 +147,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       usuarioIdAnterior.current = idNuevo
 
       setLoading(true)
-      await cargarPerfil(idNuevo)
-      if (vivo) setLoading(false)
+      const vigente = await cargarPerfil(idNuevo)
+      if (vivo && vigente) setLoading(false)
     })
 
     return () => {
