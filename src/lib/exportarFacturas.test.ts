@@ -256,6 +256,14 @@ describe('construirLibro: el archivo real', () => {
     expect(total(2).w).toBe('1,234.50')
   })
 
+  it('una cantidad entera se ve como 1 y no como "1."', async () => {
+    const linea = { id: 'd1', factura_id: 'f1', orden: 0, descripcion: 'Servicio', cantidad: 1, precio_unitario: 1500000, subtotal_linea: 1500000, tasa_iva: 10 }
+    const { XLSX, leido } = await leer([factura({ factura_detalles: [linea, { ...linea, id: 'd2', orden: 1, cantidad: 2.5 }] })])
+    const hoja = leido.Sheets['Detalle']
+    expect(hoja[XLSX.utils.encode_cell({ r: 1, c: 5 })].w).toBe('1')
+    expect(hoja[XLSX.utils.encode_cell({ r: 2, c: 5 })].w).toBe('2.5')
+  })
+
   it('trae las cuatro hojas y el filtro automatico en las que tienen filas', async () => {
     const { leido } = await leer([factura({ pagos_factura: [pago()] })])
     expect(leido.SheetNames).toEqual(['Facturas', 'Detalle', 'Notas de crédito', 'Pagos y cobros'])

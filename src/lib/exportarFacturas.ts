@@ -266,7 +266,8 @@ export async function construirLibro(facturas: FacturaConRelaciones[]) {
         if (!celda) return
         if (col.tipo === 'fecha') celda.z = FORMATO_FECHA
         else if (col.tipo === 'monto') celda.z = formatoDeMonto(fila[hoja.columnaMoneda])
-        else if (col.tipo === 'numero') celda.z = '#,##0.####'
+        // 'numero' (cantidad, tipo de cambio) queda en General: un formato con decimales
+        // opcionales como #,##0.#### muestra el 1 como "1.", con el punto colgando
         else if (col.tipo === 'entero') celda.z = '0'
       })
     })
