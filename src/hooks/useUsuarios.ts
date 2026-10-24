@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Usuario } from '@/lib/database.types'
+import { traerTodo } from '@/lib/db'
 import { apiFetch } from '@/lib/supabase'
 import { supabase } from '@/lib/supabase'
 
@@ -18,15 +19,15 @@ export function useUsuarios(empresaId?: string) {
 
   const refetch = useCallback(async () => {
     setEstado((s) => ({ ...s, loading: true, error: null }))
-    let q = supabase.from('usuarios').select('*').order('nombre', { ascending: true })
-    if (empresaId) q = q.eq('empresa_id', empresaId)
-    const { data, error } = await q
-
-    setEstado({
-      data: (data as Usuario[]) ?? [],
-      loading: false,
-      error: error ? 'No se pudieron cargar los usuarios.' : null,
-    })
+    try {
+      const data = await traerTodo<Usuario>(() => {
+        const q = supabase.from('usuarios').select('*').order('nombre', { ascending: true }).order('id')
+        return empresaId ? q.eq('empresa_id', empresaId) : q
+      })
+      setEstado({ data, loading: false, error: null })
+    } catch {
+      setEstado({ data: [], loading: false, error: 'No se pudieron cargar los usuarios.' })
+    }
   }, [empresaId])
 
   useEffect(() => {

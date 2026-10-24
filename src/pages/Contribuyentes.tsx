@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Cargando, ErrorBox, Vacio } from '@/components/ui/estado'
 import { Input, Select } from '@/components/ui/field'
 import { useContribuyentes } from '@/hooks/useContribuyentes'
+import { useLotes } from '@/hooks/useLotes'
 import { formatRuc, normalizar } from '@/lib/format'
 
 type FiltroEstado = 'todos' | 'activos' | 'inactivos'
@@ -31,6 +32,7 @@ export default function Contribuyentes() {
       )
     })
   }, [data, busqueda, filtroEstado])
+  const { visibles, centinela } = useLotes(filtrados.length, `${busqueda}|${filtroEstado}`)
 
   return (
     <div>
@@ -99,7 +101,7 @@ export default function Contribuyentes() {
               </tr>
             </thead>
             <tbody>
-              {filtrados.map((c) => (
+              {filtrados.slice(0, visibles).map((c) => (
                 <tr
                   key={c.id}
                   onClick={() => navigate(`/contribuyentes/${c.id}`)}
@@ -123,6 +125,7 @@ export default function Contribuyentes() {
               ))}
             </tbody>
           </table>
+          {centinela && <div ref={centinela} className="h-8" />}
         </div>
       )}
 

@@ -253,6 +253,8 @@ export interface PagoFactura {
   fecha_pago: string
   monto: number
   medio_pago: MedioPago
+  /** Banco o entidad por donde se movio el pago (texto libre). */
+  entidad: string | null
   referencia: string | null
   observaciones: string | null
   archivo_path: string | null

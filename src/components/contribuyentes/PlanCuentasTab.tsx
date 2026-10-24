@@ -7,6 +7,7 @@ import { Cargando, ErrorBox, Vacio } from '@/components/ui/estado'
 import { Field, Input, Select } from '@/components/ui/field'
 import { ConfirmModal, Modal } from '@/components/ui/modal'
 import { useContribuyentes } from '@/hooks/useContribuyentes'
+import { useLotes } from '@/hooks/useLotes'
 import { usePlanCuentas } from '@/hooks/usePlanCuentas'
 import type { Naturaleza, PlanCuenta } from '@/lib/database.types'
 import { leerTextoArchivo, parseCsv } from '@/lib/csv'
@@ -48,6 +49,7 @@ export function PlanCuentasTab({
     if (!q) return data
     return data.filter((c) => normalizar(c.cuenta).includes(q) || normalizar(c.denominacion).includes(q))
   }, [data, busqueda])
+  const { visibles, centinela } = useLotes(filtradas.length, busqueda)
 
   async function onImportarArchivo(e: ChangeEvent<HTMLInputElement>) {
     const archivo = e.target.files?.[0]
@@ -177,7 +179,7 @@ export function PlanCuentasTab({
               </tr>
             </thead>
             <tbody>
-              {filtradas.map((c) => (
+              {filtradas.slice(0, visibles).map((c) => (
                 <tr
                   key={c.id}
                   onClick={() => setModalCuenta(c)}
@@ -222,6 +224,7 @@ export function PlanCuentasTab({
               ))}
             </tbody>
           </table>
+          {centinela && <div ref={centinela} className="h-8" />}
         </div>
       )}
 

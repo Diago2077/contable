@@ -79,6 +79,7 @@ const pago = (parcial: Partial<PagoFactura> = {}): PagoFactura =>
     fecha_pago: '2026-08-20',
     monto: 800000,
     medio_pago: 'transferencia',
+    entidad: 'Banco Itaú',
     referencia: 'OP 123',
     observaciones: null,
     ...parcial,
@@ -178,6 +179,14 @@ describe('armarHojas', () => {
   it('traduce el medio de pago al nombre que ve el usuario', () => {
     const [, , , pagos] = armarHojas([factura({ pagos_factura: [pago({ medio_pago: 'cheque' })] })])
     expect(celda(pagos, 0, 'Medio')).toBe('Cheque')
+  })
+
+  it('incluye el banco o entidad de cada pago, vacio si no lo tiene', () => {
+    const [, , , pagos] = armarHojas([
+      factura({ pagos_factura: [pago(), pago({ id: 'p2', entidad: null, medio_pago: 'efectivo' })] }),
+    ])
+    expect(celda(pagos, 0, 'Banco / entidad')).toBe('Banco Itaú')
+    expect(celda(pagos, 1, 'Banco / entidad')).toBeNull()
   })
 })
 

@@ -327,13 +327,15 @@ const handler: ApiHandler = async (req, res) => {
     inicioMes.setUTCDate(1)
     inicioMes.setUTCHours(0, 0, 0, 0)
 
-    const { data: usoMes } = await admin
-      .from('uso_ia')
-      .select('tokens_total')
-      .eq('empresa_id', contribuyente.empresa_id)
-      .gte('created_at', inicioMes.toISOString())
+    // Lo suma la base: traer las filas y sumar aca se corta en 1000 (PostgREST)
+    // y con mas llamadas que esas el limite dejaba de cortar.
+    const { data: usoMes, error: errUsoMes } = await admin.rpc('uso_ia_totales', {
+      p_empresa: contribuyente.empresa_id,
+      p_desde: inicioMes.toISOString(),
+    })
+    if (errUsoMes) return error(res, 500, 'No se pudo verificar el limite mensual de extraccion.')
 
-    const tokensUsados = (usoMes ?? []).reduce((acc, u) => acc + u.tokens_total, 0)
+    const tokensUsados = Number(usoMes?.[0]?.tokens ?? 0)
     if (tokensUsados >= empresa.limite_tokens_mensual) {
       return error(
         res,
@@ -371,13 +373,13 @@ const handler: ApiHandler = async (req, res) => {
   const limitePorHora = (config as { limite_tokens_usuario_hora?: number | null }).limite_tokens_usuario_hora
   if (limitePorHora != null) {
     const haceUnaHora = new Date(Date.now() - 60 * 60 * 1000).toISOString()
-    const { data: usoHora } = await admin
-      .from('uso_ia')
-      .select('tokens_total')
-      .eq('usuario_id', perfil.id)
-      .gte('created_at', haceUnaHora)
+    const { data: usoHora, error: errUsoHora } = await admin.rpc('uso_ia_totales', {
+      p_usuario: perfil.id,
+      p_desde: haceUnaHora,
+    })
+    if (errUsoHora) return error(res, 500, 'No se pudo verificar el limite por hora de extraccion.')
 
-    const tokensUltimaHora = (usoHora ?? []).reduce((acc, u) => acc + u.tokens_total, 0)
+    const tokensUltimaHora = Number(usoHora?.[0]?.tokens ?? 0)
     if (tokensUltimaHora >= limitePorHora) {
       return error(
         res,

@@ -1,6 +1,6 @@
-import { ArrowLeft, Pencil, Receipt, Wallet } from 'lucide-react'
+import { Pencil, Receipt, Wallet } from 'lucide-react'
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ContribuyenteFormModal } from '@/components/contribuyentes/ContribuyenteFormModal'
 import { PlanCuentasTab } from '@/components/contribuyentes/PlanCuentasTab'
@@ -37,13 +37,6 @@ export default function ContribuyenteDetalle() {
 
   return (
     <div>
-      <Link
-        to="/contribuyentes"
-        className="mb-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-3.5" /> Contribuyentes
-      </Link>
-
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">

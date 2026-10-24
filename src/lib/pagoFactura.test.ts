@@ -29,7 +29,14 @@ describe('pagoNuevo', () => {
 })
 
 describe('validarPago', () => {
-  const ok = { fecha_pago: '2026-09-05', monto: '1.500.000', medio_pago: 'efectivo' as const, referencia: '', observaciones: '' }
+  const ok = {
+    fecha_pago: '2026-09-05',
+    monto: '1.500.000',
+    medio_pago: 'efectivo' as const,
+    entidad: '',
+    referencia: '',
+    observaciones: '',
+  }
 
   it('acepta un pago completo', () => {
     expect(validarPago(ok)).toBeNull()
@@ -51,6 +58,7 @@ describe('conversion del formulario', () => {
       fecha_pago: '2026-09-05',
       monto: '1.500.000',
       medio_pago: 'cheque',
+      entidad: '  Banco Itaú  ',
       referencia: '  ',
       observaciones: '',
     })
@@ -58,9 +66,15 @@ describe('conversion del formulario', () => {
       fecha_pago: '2026-09-05',
       monto: 1500000,
       medio_pago: 'cheque',
+      entidad: 'Banco Itaú',
       referencia: null,
       observaciones: null,
     })
+  })
+
+  it('el banco o entidad es opcional: vacio se guarda como null', () => {
+    expect(pagoFormAUpdate({ ...pagoNuevo(100), entidad: '   ' }).entidad).toBeNull()
+    expect(pagoFormAUpdate(pagoNuevo(100)).entidad).toBeNull()
   })
 
   it('ata el pago a su factura y puede no tener archivo', () => {
@@ -82,6 +96,7 @@ describe('conversion del formulario', () => {
       fecha_pago: '2026-08-10',
       monto: 800000,
       medio_pago: 'transferencia',
+      entidad: 'Tigo Money',
       referencia: 'OP 123',
       observaciones: null,
     } as PagoFactura)
@@ -89,8 +104,14 @@ describe('conversion del formulario', () => {
       fecha_pago: '2026-08-10',
       monto: '800000',
       medio_pago: 'transferencia',
+      entidad: 'Tigo Money',
       referencia: 'OP 123',
       observaciones: '',
     })
+  })
+
+  it('un pago guardado sin entidad (anterior al campo) se carga con el campo vacio', () => {
+    const f = pagoAFormState({ fecha_pago: '2026-08-10', monto: 5, medio_pago: 'efectivo', entidad: null } as PagoFactura)
+    expect(f.entidad).toBe('')
   })
 })

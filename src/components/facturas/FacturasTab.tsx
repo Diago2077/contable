@@ -1,4 +1,4 @@
-import { AlertTriangle, ChevronLeft, ChevronRight, Download, Loader2, Plus, Receipt, Search } from 'lucide-react'
+import { AlertTriangle, ChevronLeft, ChevronRight, FileSpreadsheet, Loader2, Plus, Receipt } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -6,9 +6,10 @@ import { EditarFacturaModal } from '@/components/facturas/EditarFacturaModal'
 import { FacturaDetalleModal } from '@/components/facturas/FacturaDetalleModal'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Buscador } from '@/components/ui/buscador'
 import { Cargando, ErrorBox, Vacio } from '@/components/ui/estado'
-import { Input, Select } from '@/components/ui/field'
 import { ConfirmModal } from '@/components/ui/modal'
+import { OpcionUnica, PanelFiltros, RangoFechas } from '@/components/ui/panel-filtros'
 import { FILTROS_VACIOS, useFacturas, type FiltrosFacturas } from '@/hooks/useFacturas'
 import { usePlanCuentas } from '@/hooks/usePlanCuentas'
 import { etiquetaEstadoPago, TONO_ESTADO_PAGO } from '@/lib/cobros'
@@ -57,6 +58,11 @@ export function FacturasTab({ contribuyenteId, razonSocial }: { contribuyenteId:
     filtros.hasta ||
     filtros.busqueda
 
+  // La busqueda por texto no cuenta: es el campo de al lado, no un filtro del panel
+  const filtrosActivos =
+    [filtros.tipoOperacion, filtros.planCuentaId, filtros.estadoPago].filter(Boolean).length +
+    (filtros.desde || filtros.hasta ? 1 : 0)
+
   /** Exporta TODAS las facturas que cumplen los filtros, no solo la pagina que se ve. */
   async function onExportar() {
     setExportando(true)
@@ -82,96 +88,84 @@ export function FacturasTab({ contribuyenteId, razonSocial }: { contribuyenteId:
         <p className="text-xs text-muted-foreground">
           {total} {total === 1 ? 'factura' : 'facturas'}
         </p>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onExportar}
-            disabled={exportando || total === 0}
-            title={
-              hayFiltrosActivos
-                ? 'Exporta todas las facturas que cumplen los filtros aplicados, no solo las de esta pagina'
-                : 'Exporta todas las facturas del contribuyente'
-            }
-          >
-            {exportando ? <Loader2 className="animate-spin" /> : <Download />}
-            {exportando ? 'Exportando…' : hayFiltrosActivos ? 'Exportar filtradas' : 'Exportar a Excel'}
-          </Button>
+        <div className="flex w-full items-center gap-2 sm:w-auto">
+          <div className="min-w-0 flex-1 sm:w-80 sm:flex-none">
+            <Buscador
+              valor={busquedaInput}
+              onChange={setBusquedaInput}
+              placeholder="Buscar por N°, proveedor, cliente, RUC o CDC…"
+              accion={
+                <PanelFiltros
+                  activos={filtrosActivos}
+                  onLimpiar={() => {
+                    // Restablece los filtros del panel; lo escrito en el buscador se queda
+                    setFiltros((f) => ({ ...FILTROS_VACIOS, busqueda: f.busqueda }))
+                    setPagina(1)
+                  }}
+                  acciones={
+                    <div>
+                      <p className="mb-1.5 text-xs font-medium text-muted-foreground">Exportar lo que se ve</p>
+                      <Button variant="outline" size="sm" onClick={onExportar} disabled={exportando || total === 0}>
+                        {exportando ? <Loader2 className="animate-spin" /> : <FileSpreadsheet />}
+                        {exportando ? 'Exportando…' : 'Excel'}
+                      </Button>
+                      <p className="mt-1.5 text-[11px] text-muted-foreground">
+                        Trae todas las facturas que cumplen los filtros, no solo las de esta pagina.
+                      </p>
+                    </div>
+                  }
+                >
+                  <OpcionUnica
+                    label="Tipo"
+                    porDefecto=""
+                    valor={filtros.tipoOperacion}
+                    onChange={(v) => actualizarFiltro('tipoOperacion', v)}
+                    opciones={[
+                      { value: '', label: 'Compras y ventas' },
+                      { value: 'compra', label: 'Compras' },
+                      { value: 'venta', label: 'Ventas' },
+                    ]}
+                  />
+                  <OpcionUnica
+                    label="Estado"
+                    porDefecto=""
+                    valor={filtros.estadoPago}
+                    onChange={(v) => actualizarFiltro('estadoPago', v)}
+                    opciones={[
+                      { value: '', label: 'Todos' },
+                      { value: 'pendiente', label: 'Pendientes' },
+                      { value: 'parcial', label: 'Parciales' },
+                      { value: 'pagada', label: 'Pagadas / cobradas' },
+                      { value: 'acreditada', label: 'Acreditadas' },
+                    ]}
+                  />
+                  <OpcionUnica
+                    label="Categoria"
+                    porDefecto=""
+                    valor={filtros.planCuentaId}
+                    onChange={(v) => actualizarFiltro('planCuentaId', v)}
+                    opciones={[
+                      { value: '', label: 'Todas' },
+                      ...planCuentas.map((c) => ({ value: c.id, label: `${c.cuenta} — ${c.denominacion}` })),
+                    ]}
+                  />
+                  <RangoFechas
+                    label="Fecha de factura"
+                    desde={filtros.desde}
+                    hasta={filtros.hasta}
+                    onDesde={(v) => actualizarFiltro('desde', v)}
+                    onHasta={(v) => actualizarFiltro('hasta', v)}
+                  />
+                </PanelFiltros>
+              }
+            />
+          </div>
           <Link to={`/contribuyentes/${contribuyenteId}/facturas/cargar`}>
-            <Button size="sm">
+            <Button>
               <Plus /> Cargar facturas
             </Button>
           </Link>
         </div>
-      </div>
-
-      <div className="mb-4 flex flex-wrap gap-2">
-        <div className="relative min-w-[220px] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="pl-9"
-            placeholder="Buscar por N°, proveedor, cliente o RUC…"
-            value={busquedaInput}
-            onChange={(e) => setBusquedaInput(e.target.value)}
-          />
-        </div>
-        <Select
-          className="w-auto"
-          value={filtros.tipoOperacion}
-          onChange={(e) => actualizarFiltro('tipoOperacion', e.target.value as FiltrosFacturas['tipoOperacion'])}
-        >
-          <option value="">Compras y ventas</option>
-          <option value="compra">Compras</option>
-          <option value="venta">Ventas</option>
-        </Select>
-        <Select
-          className="w-auto"
-          value={filtros.planCuentaId}
-          onChange={(e) => actualizarFiltro('planCuentaId', e.target.value)}
-        >
-          <option value="">Todas las categorias</option>
-          {planCuentas.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.cuenta} — {c.denominacion}
-            </option>
-          ))}
-        </Select>
-        <Select
-          className="w-auto"
-          value={filtros.estadoPago}
-          onChange={(e) => actualizarFiltro('estadoPago', e.target.value as FiltrosFacturas['estadoPago'])}
-        >
-          <option value="">Todos los estados</option>
-          <option value="pendiente">Pendientes</option>
-          <option value="parcial">Parciales</option>
-          <option value="pagada">Pagadas / cobradas</option>
-          <option value="acreditada">Acreditadas</option>
-        </Select>
-        <Input
-          type="date"
-          className="w-auto"
-          value={filtros.desde}
-          onChange={(e) => actualizarFiltro('desde', e.target.value)}
-        />
-        <Input
-          type="date"
-          className="w-auto"
-          value={filtros.hasta}
-          onChange={(e) => actualizarFiltro('hasta', e.target.value)}
-        />
-        {hayFiltrosActivos && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setFiltros(FILTROS_VACIOS)
-              setBusquedaInput('')
-              setPagina(1)
-            }}
-          >
-            Limpiar filtros
-          </Button>
-        )}
       </div>
 
       {loading ? (

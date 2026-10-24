@@ -103,6 +103,7 @@ const COLUMNAS_PAGOS: ColumnaExcel[] = [
   t('Moneda', 8),
   m('Monto'),
   t('Medio', 14),
+  t('Banco / entidad', 22),
   t('Referencia', 22),
   t('Observaciones', 40),
 ]
@@ -207,6 +208,7 @@ export function armarHojas(facturas: FacturaConRelaciones[]): HojaExcel[] {
         fac.moneda,
         p.monto,
         medioDe(p.medio_pago),
+        p.entidad,
         p.referencia,
         p.observaciones,
       ])

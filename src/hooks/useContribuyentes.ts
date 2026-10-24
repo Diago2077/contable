@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Contribuyente, ContribuyenteInsert, ContribuyenteUpdate } from '@/lib/database.types'
+import { traerTodo } from '@/lib/db'
 import { supabase } from '@/lib/supabase'
 
 interface Estado {
@@ -18,16 +19,14 @@ export function useContribuyentes() {
 
   const refetch = useCallback(async () => {
     setEstado((s) => ({ ...s, loading: true, error: null }))
-    const { data, error } = await supabase
-      .from('contribuyentes')
-      .select('*')
-      .order('razon_social', { ascending: true })
-
-    setEstado({
-      data: (data as Contribuyente[]) ?? [],
-      loading: false,
-      error: error ? 'No se pudieron cargar los contribuyentes.' : null,
-    })
+    try {
+      const data = await traerTodo<Contribuyente>(() =>
+        supabase.from('contribuyentes').select('*').order('razon_social', { ascending: true }).order('id'),
+      )
+      setEstado({ data, loading: false, error: null })
+    } catch {
+      setEstado({ data: [], loading: false, error: 'No se pudieron cargar los contribuyentes.' })
+    }
   }, [])
 
   useEffect(() => {

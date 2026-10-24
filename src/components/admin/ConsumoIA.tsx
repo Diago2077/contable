@@ -12,6 +12,9 @@ const MESES = [
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ]
 
+/** Llamadas del mes que se listan en el detalle (los totales las cuentan todas). */
+const LIMITE_DETALLE = 200
+
 interface Totales {
   facturas: number
   tokens: number
@@ -57,25 +60,31 @@ export function ConsumoIA({
     const inicio = new Date(Date.UTC(anio, mes, 1)).toISOString()
     const fin = new Date(Date.UTC(anio, mes + 1, 1)).toISOString()
 
-    supabase
-      .from('uso_ia')
-      .select('id, created_at, modelo, tokens_prompt, tokens_completion, tokens_total, tokens_cache, costo_usd, contribuyente:contribuyentes(razon_social)')
-      .eq('empresa_id', empresaId)
-      .gte('created_at', inicio)
-      .lt('created_at', fin)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        if (cancelado) return
-        const lista = (data ?? []) as unknown as FilaUso[]
-        setFilas(lista)
-        setTotales({
-          facturas: lista.length,
-          tokens: lista.reduce((acc, f) => acc + f.tokens_total, 0),
-          tokensCache: lista.reduce((acc, f) => acc + (f.tokens_cache ?? 0), 0),
-          costoUsd: lista.reduce((acc, f) => acc + Number(f.costo_usd), 0),
-        })
-        setCargando(false)
+    // Los totales los suma la base (traer las filas se corta en 1000); el detalle
+    // muestra solo las ultimas LIMITE_DETALLE llamadas del mes.
+    Promise.all([
+      supabase.rpc('uso_ia_totales', { p_empresa: empresaId, p_desde: inicio, p_hasta: fin }),
+      supabase
+        .from('uso_ia')
+        .select('id, created_at, modelo, tokens_prompt, tokens_completion, tokens_total, tokens_cache, costo_usd, contribuyente:contribuyentes(razon_social)')
+        .eq('empresa_id', empresaId)
+        .gte('created_at', inicio)
+        .lt('created_at', fin)
+        .order('created_at', { ascending: false })
+        .order('id')
+        .limit(LIMITE_DETALLE),
+    ]).then(([resumen, detalle]) => {
+      if (cancelado) return
+      const t = resumen.data?.[0]
+      setFilas((detalle.data ?? []) as unknown as FilaUso[])
+      setTotales({
+        facturas: Number(t?.llamadas ?? 0),
+        tokens: Number(t?.tokens ?? 0),
+        tokensCache: Number(t?.tokens_cache ?? 0),
+        costoUsd: Number(t?.costo_usd ?? 0),
       })
+      setCargando(false)
+    })
 
     return () => {
       cancelado = true
@@ -193,6 +202,12 @@ export function ConsumoIA({
             </tbody>
           </table>
         </div>
+      )}
+
+      {!cargando && totales && totales.facturas > filas.length && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Se listan las últimas {filas.length} de {totales.facturas} llamadas; los totales de arriba cuentan todas.
+        </p>
       )}
 
       {!cargando && totales && filas.length === 0 && (

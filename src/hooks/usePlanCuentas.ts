@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { PlanCuenta, PlanCuentaInsert, PlanCuentaUpdate } from '@/lib/database.types'
+import { traerTodo } from '@/lib/db'
 import { supabase } from '@/lib/supabase'
 
 interface Estado {
@@ -14,17 +15,20 @@ export function usePlanCuentas(contribuyenteId: string | undefined) {
   const refetch = useCallback(async () => {
     if (!contribuyenteId) return
     setEstado((s) => ({ ...s, loading: true, error: null }))
-    const { data, error } = await supabase
-      .from('plan_cuentas')
-      .select('*')
-      .eq('contribuyente_id', contribuyenteId)
-      .order('cuenta', { ascending: true })
-
-    setEstado({
-      data: (data as PlanCuenta[]) ?? [],
-      loading: false,
-      error: error ? 'No se pudo cargar el plan de cuentas.' : null,
-    })
+    try {
+      // Un plan de cuentas puede pasar las 1000 filas que PostgREST devuelve por pedido
+      const data = await traerTodo<PlanCuenta>(() =>
+        supabase
+          .from('plan_cuentas')
+          .select('*')
+          .eq('contribuyente_id', contribuyenteId)
+          .order('cuenta', { ascending: true })
+          .order('id'),
+      )
+      setEstado({ data, loading: false, error: null })
+    } catch {
+      setEstado({ data: [], loading: false, error: 'No se pudo cargar el plan de cuentas.' })
+    }
   }, [contribuyenteId])
 
   useEffect(() => {
@@ -60,13 +64,20 @@ export function usePlanCuentas(contribuyenteId: string | undefined) {
   async function clonarDesde(origenId: string, empresaId: string) {
     if (!contribuyenteId) return { insertadas: 0, omitidas: 0, error: 'Falta el contribuyente.' }
 
-    const { data: origen, error: errOrigen } = await supabase
-      .from('plan_cuentas')
-      .select('cuenta, denominacion, nivel, naturaleza, asentable, centro_costo, moneda, tipo_cambio, cuenta_sset, activo')
-      .eq('contribuyente_id', origenId)
-
-    if (errOrigen) return { insertadas: 0, omitidas: 0, error: 'No se pudo leer el plan de cuentas de origen.' }
-    if (!origen || origen.length === 0) {
+    let origen: Omit<PlanCuentaInsert, 'empresa_id' | 'contribuyente_id'>[]
+    try {
+      origen = await traerTodo(() =>
+        supabase
+          .from('plan_cuentas')
+          .select('cuenta, denominacion, nivel, naturaleza, asentable, centro_costo, moneda, tipo_cambio, cuenta_sset, activo')
+          .eq('contribuyente_id', origenId)
+          .order('cuenta', { ascending: true })
+          .order('id'),
+      )
+    } catch {
+      return { insertadas: 0, omitidas: 0, error: 'No se pudo leer el plan de cuentas de origen.' }
+    }
+    if (origen.length === 0) {
       return { insertadas: 0, omitidas: 0, error: 'Ese contribuyente no tiene plan de cuentas cargado.' }
     }
 

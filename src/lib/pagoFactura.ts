@@ -6,6 +6,7 @@ export interface PagoFormState {
   fecha_pago: string // yyyy-mm-dd
   monto: string
   medio_pago: MedioPago
+  entidad: string
   referencia: string
   observaciones: string
 }
@@ -23,6 +24,7 @@ export function pagoNuevo(saldo: number, ahora = new Date()): PagoFormState {
     fecha_pago: hoyISO(ahora),
     monto: saldo > 0 ? String(saldo) : '',
     medio_pago: 'transferencia',
+    entidad: '',
     referencia: '',
     observaciones: '',
   }
@@ -33,6 +35,7 @@ export function pagoAFormState(pago: PagoFactura): PagoFormState {
     fecha_pago: pago.fecha_pago,
     monto: String(pago.monto),
     medio_pago: pago.medio_pago,
+    entidad: pago.entidad ?? '',
     referencia: pago.referencia ?? '',
     observaciones: pago.observaciones ?? '',
   }
@@ -50,6 +53,7 @@ export function pagoFormAUpdate(form: PagoFormState): PagoFacturaUpdate {
     fecha_pago: form.fecha_pago,
     monto: parseMonto(form.monto),
     medio_pago: form.medio_pago,
+    entidad: form.entidad.trim() || null,
     referencia: form.referencia.trim() || null,
     observaciones: form.observaciones.trim() || null,
   }

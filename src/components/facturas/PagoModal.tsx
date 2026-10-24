@@ -140,10 +140,19 @@ export function PagoModal({
               ))}
             </Select>
           </Field>
-          <Field label="Referencia" hint="N° de operacion, de cheque, de recibo…">
-            <Input value={form.referencia} onChange={(e) => campo('referencia', e.target.value)} />
+          <Field label="Banco o entidad">
+            <Input
+              value={form.entidad}
+              onChange={(e) => campo('entidad', e.target.value)}
+              placeholder="Ej: Banco Itau, Tigo Money"
+              autoComplete="off"
+            />
           </Field>
         </div>
+
+        <Field label="Referencia" hint="N° de operacion, de cheque, de recibo…">
+          <Input value={form.referencia} onChange={(e) => campo('referencia', e.target.value)} />
+        </Field>
 
         <Field label="Observaciones">
           <Textarea value={form.observaciones} onChange={(e) => campo('observaciones', e.target.value)} rows={2} />

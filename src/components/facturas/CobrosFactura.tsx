@@ -150,7 +150,7 @@ export function CobrosFactura({
                 key={p.id}
                 titulo={MEDIOS_PAGO.find((m) => m.value === p.medio_pago)?.label ?? p.medio_pago}
                 fecha={p.fecha_pago}
-                detalle={p.referencia}
+                detalle={[p.entidad, p.referencia].filter(Boolean).join(' · ') || null}
                 monto={formatMontoConMoneda(p.monto, factura.moneda)}
                 archivo={p.archivo_path}
                 onEditar={() => setPagoAbierto(p)}

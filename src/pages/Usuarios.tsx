@@ -14,6 +14,7 @@ import {
   UsuarioDetalleModal,
 } from '@/components/usuarios/UsuarioModales'
 import { useAuth } from '@/hooks/useAuth'
+import { useLotes } from '@/hooks/useLotes'
 import { useUsuarios } from '@/hooks/useUsuarios'
 import { ROL_LABEL, type Usuario } from '@/lib/database.types'
 import { normalizar } from '@/lib/format'
@@ -40,6 +41,7 @@ export default function Usuarios() {
     if (!q) return data
     return data.filter((u) => normalizar(u.nombre).includes(q) || normalizar(u.email).includes(q))
   }, [data, busqueda])
+  const { visibles, centinela } = useLotes(filtrados.length, busqueda)
 
   const [modalNuevo, setModalNuevo] = useState(false)
   const [modalDetalle, setModalDetalle] = useState<Usuario | null>(null)
@@ -99,7 +101,7 @@ export default function Usuarios() {
               </tr>
             </thead>
             <tbody>
-              {filtrados.map((u) => {
+              {filtrados.slice(0, visibles).map((u) => {
                 // Un admin solo puede administrar usuarios 'usuario': a otro
                 // admin (o a si mismo) lo ve, pero la fila no abre el detalle.
                 const clickeable = puedeGestionar && u.rol === 'usuario'
@@ -124,6 +126,7 @@ export default function Usuarios() {
               })}
             </tbody>
           </table>
+          {centinela && <div ref={centinela} className="h-8" />}
         </div>
       )}
 

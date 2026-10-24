@@ -154,6 +154,7 @@ export type Database = {
           created_by: string | null
           empresa_id: string
           factura_id: string
+          entidad: string | null
           fecha_pago: string
           id: string
           medio_pago: string
@@ -212,6 +213,10 @@ export type Database = {
       crear_factura_con_detalles: {
         Args: { detalles?: Json; factura: Json }
         Returns: string
+      }
+      uso_ia_totales: {
+        Args: { p_desde?: string; p_empresa?: string; p_hasta?: string; p_usuario?: string }
+        Returns: { costo_usd: number; llamadas: number; tokens: number; tokens_cache: number }[]
       }
     }
   }
