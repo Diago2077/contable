@@ -1,5 +1,6 @@
 import * as pdfjsLib from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url'
+import { armarTextoDePagina } from './pdfTexto'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
 
@@ -10,13 +11,16 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
  * analiza la primera con la IA.
  *
  * Se devuelve tambien la cantidad de paginas para poder avisarle al usuario
- * cuando subio un PDF de varias y solo se leyo una.
+ * cuando subio un PDF de varias y solo se leyo una, y el texto digital de esa
+ * pagina: una factura electronica descargada como PDF lo trae, y leerlo es
+ * exacto en lugar de pedirle a la IA que lo vuelva a leer de los pixeles.
+ * Vacio si el PDF es un escaneo (sin capa de texto).
  */
 export async function pdfAPrimeraPagina(
   archivo: File,
   ladoMaximo: number,
   calidad: number,
-): Promise<{ dataUrl: string; paginas: number }> {
+): Promise<{ dataUrl: string; paginas: number; texto: string }> {
   const buffer = await archivo.arrayBuffer()
   const pdf = await pdfjsLib.getDocument({ data: buffer }).promise
   const pagina = await pdf.getPage(1)
@@ -39,5 +43,14 @@ export async function pdfAPrimeraPagina(
   contexto.fillRect(0, 0, canvas.width, canvas.height)
 
   await pagina.render({ canvasContext: contexto, viewport, canvas }).promise
-  return { dataUrl: canvas.toDataURL('image/jpeg', calidad), paginas: pdf.numPages }
+
+  // Si el texto falla no se pierde la factura: sigue la lectura por imagen
+  let texto = ''
+  try {
+    texto = armarTextoDePagina((await pagina.getTextContent()).items)
+  } catch {
+    texto = ''
+  }
+
+  return { dataUrl: canvas.toDataURL('image/jpeg', calidad), paginas: pdf.numPages, texto }
 }

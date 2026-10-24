@@ -101,10 +101,10 @@ export default function CargarFacturas() {
     if (!contribuyenteId) return
     actualizarItem(item.id, { estado: 'extrayendo', error: undefined })
     try {
-      const { base64, mime, previewDataUrl, paginas } = await prepararParaExtraccion(item.archivo)
+      const { base64, mime, previewDataUrl, paginas, texto } = await prepararParaExtraccion(item.archivo)
       actualizarItem(item.id, { previewSrc: previewDataUrl, paginas })
 
-      const { datos, error } = await extraer(contribuyenteId, base64, mime)
+      const { datos, error } = await extraer(contribuyenteId, base64, mime, texto)
       if (error || !datos) {
         actualizarItem(item.id, { estado: 'error', error: error ?? 'No se pudo leer la factura.' })
         return

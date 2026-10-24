@@ -1,5 +1,6 @@
 import { useAuth } from './useAuth'
 import type { ExtraccionIA, FacturaFormState } from '@/lib/extraccion'
+import { buscarCdcEnTexto } from '@/lib/cdc'
 import type { NotaCreditoExtraccion } from '@/lib/notaCredito'
 import { formStateADetalles, formStateAFacturaInsert } from '@/lib/extraccion'
 import { apiFetch, supabase } from '@/lib/supabase'
@@ -9,11 +10,12 @@ import { eliminarArchivoFactura, subirArchivoFactura } from '@/lib/storage'
 export function useFacturaAlta() {
   const { user, empresa } = useAuth()
 
-  async function extraerDocumento<T>(
+  async function extraerDocumento<T extends { cdc: string | null }>(
     contribuyenteId: string,
     base64: string,
     mime: string,
     tipoDocumento: 'factura' | 'nota_credito',
+    textoPdf: string,
   ) {
     try {
       const respuesta = await apiFetch<{ ok: boolean; datos: T }>('/api/extraer', {
@@ -21,18 +23,26 @@ export function useFacturaAlta() {
         imagen_base64: base64,
         mime_type: mime,
         tipo_documento: tipoDocumento,
+        // Solo viaja si el PDF tiene capa de texto
+        ...(textoPdf ? { texto_pdf: textoPdf } : {}),
       })
-      return { datos: respuesta.datos, error: null }
+
+      // El CDC impreso en el texto del PDF es exacto; el que leyo la IA de la
+      // imagen puede traer un digito de menos. Si en el texto hay uno cuyo
+      // digito verificador cierra y es del tipo esperado, manda ese.
+      const cdcExacto = buscarCdcEnTexto(textoPdf, tipoDocumento === 'factura' ? 'factura' : 'nota_credito')
+      const datos = cdcExacto ? { ...respuesta.datos, cdc: cdcExacto } : respuesta.datos
+      return { datos, error: null }
     } catch (e) {
       return { datos: null, error: e instanceof Error ? e.message : 'No se pudo leer el documento.' }
     }
   }
 
-  const extraer = (contribuyenteId: string, base64: string, mime: string) =>
-    extraerDocumento<ExtraccionIA>(contribuyenteId, base64, mime, 'factura')
+  const extraer = (contribuyenteId: string, base64: string, mime: string, textoPdf = '') =>
+    extraerDocumento<ExtraccionIA>(contribuyenteId, base64, mime, 'factura', textoPdf)
 
-  const extraerNota = (contribuyenteId: string, base64: string, mime: string) =>
-    extraerDocumento<NotaCreditoExtraccion>(contribuyenteId, base64, mime, 'nota_credito')
+  const extraerNota = (contribuyenteId: string, base64: string, mime: string, textoPdf = '') =>
+    extraerDocumento<NotaCreditoExtraccion>(contribuyenteId, base64, mime, 'nota_credito', textoPdf)
 
   /**
    * Sube el archivo original y crea la factura + detalles en una transaccion.

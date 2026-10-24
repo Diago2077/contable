@@ -102,8 +102,8 @@ export function NotaCreditoModal({
     }
 
     try {
-      const { base64, mime } = await prepararParaExtraccion(elegido)
-      const { datos, error: err } = await extraerNota(factura.contribuyente_id, base64, mime)
+      const { base64, mime, texto } = await prepararParaExtraccion(elegido)
+      const { datos, error: err } = await extraerNota(factura.contribuyente_id, base64, mime, texto)
       if (err || !datos) return sinLectura(err ?? 'No se pudo leer la nota.')
       setExtraccion(datos)
       setForm(extraccionANotaForm(datos))

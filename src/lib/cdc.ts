@@ -163,3 +163,35 @@ export function revisarCdc(entrada: string | null | undefined, contra: DatosPara
 
   return problemas
 }
+
+/**
+ * Busca en el texto de un PDF el CDC del documento, sin pasar por la IA.
+ *
+ * En el KuDE se imprime en once grupos de cuatro digitos separados por
+ * espacios (y algunos generadores meten varios espacios o espacios no
+ * cortables), pero tambien puede venir corrido. Un candidato solo se acepta
+ * si el digito verificador cierra Y es del tipo de documento que se espera:
+ * una nota de credito cita en su texto el CDC de la factura que modifica, y
+ * esa es de otro tipo, asi que no se confunde con el propio.
+ *
+ * Devuelve null si no hay ninguno confiable; ahi se queda lo que leyo la IA.
+ */
+export function buscarCdcEnTexto(
+  texto: string | null | undefined,
+  esperado?: 'factura' | 'nota_credito',
+): string | null {
+  if (!texto) return null
+
+  const candidatos: string[] = []
+  for (const m of texto.matchAll(/\d{44}/g)) candidatos.push(m[0])
+  for (const m of texto.matchAll(/\d{4}(?:\s+\d{4}){10}/g)) candidatos.push(m[0].replace(/\D/g, ''))
+
+  for (const cdc of candidatos) {
+    if (!dvCdcCierra(cdc)) continue
+    const tipo = cdc.slice(0, 2)
+    if (esperado === 'factura' && !['01', '02', '03', '04'].includes(tipo)) continue
+    if (esperado === 'nota_credito' && tipo !== '05') continue
+    return cdc
+  }
+  return null
+}

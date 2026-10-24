@@ -69,19 +69,20 @@ async function reducir(dataUrl: string): Promise<string> {
  * Devuelve la imagen que se manda a la IA de vision (JPEG en base64) y la que
  * se muestra en pantalla. Para PDF ambas son la primera pagina rasterizada;
  * el archivo ORIGINAL completo se sube a Storage aparte, sin pasar por aca.
+ * `texto` es la capa de texto del PDF (vacio en una imagen o en un escaneo).
  */
 export async function prepararParaExtraccion(
   archivo: File,
-): Promise<{ base64: string; mime: string; previewDataUrl: string; paginas: number }> {
+): Promise<{ base64: string; mime: string; previewDataUrl: string; paginas: number; texto: string }> {
   if (archivo.type === 'application/pdf') {
     // pdf.js pesa ~450 kB y solo hace falta cuando se sube un PDF: se importa
     // aca adentro para que no viaje con el bundle de todas las pantallas
     const { pdfAPrimeraPagina } = await import('./pdf')
-    const { dataUrl, paginas } = await pdfAPrimeraPagina(archivo, LADO_MAXIMO, CALIDAD_JPEG)
-    return { base64: dataUrl.split(',')[1] ?? '', mime: 'image/jpeg', previewDataUrl: dataUrl, paginas }
+    const { dataUrl, paginas, texto } = await pdfAPrimeraPagina(archivo, LADO_MAXIMO, CALIDAD_JPEG)
+    return { base64: dataUrl.split(',')[1] ?? '', mime: 'image/jpeg', previewDataUrl: dataUrl, paginas, texto }
   }
 
   const original = await leerComoDataUrl(archivo)
   const reducido = await reducir(original)
-  return { base64: reducido.split(',')[1] ?? '', mime: 'image/jpeg', previewDataUrl: reducido, paginas: 1 }
+  return { base64: reducido.split(',')[1] ?? '', mime: 'image/jpeg', previewDataUrl: reducido, paginas: 1, texto: '' }
 }
