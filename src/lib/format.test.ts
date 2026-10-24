@@ -32,6 +32,17 @@ describe('parseMonto', () => {
     expect(parseMonto('1,500')).toBe(1500)
   })
 
+  it('respeta el signo menos en todos los formatos', () => {
+    expect(parseMonto('-200.000')).toBe(-200000)
+    expect(parseMonto('-1.500,50')).toBe(-1500.5)
+    expect(parseMonto('-1,500,000.50')).toBe(-1500000.5)
+    expect(parseMonto('-5')).toBe(-5)
+  })
+
+  it('un guion en el medio no es un signo', () => {
+    expect(parseMonto('12-34')).toBe(0)
+  })
+
   it('devuelve 0 para vacio o basura', () => {
     expect(parseMonto('')).toBe(0)
     expect(parseMonto(null)).toBe(0)

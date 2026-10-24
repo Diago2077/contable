@@ -78,11 +78,13 @@ export type Database = {
           cliente_direccion: string | null
           cliente_nombre: string | null
           cliente_ruc: string | null
+          cdc: string | null
           condicion_venta: string | null
           contribuyente_id: string
           created_at: string | null
           created_by: string | null
           empresa_id: string
+          estado_pago: string | null
           exentas: number
           extraccion_raw: Json | null
           fecha_factura: string | null
@@ -94,18 +96,70 @@ export type Database = {
           iva_5: number
           iva_total: number | null
           moneda: string
+          notas_credito_total: number
           numero_factura: string | null
           observaciones: string | null
+          pagado_total: number
           plan_cuenta_id: string | null
           proveedor_direccion: string | null
           proveedor_nombre: string | null
           proveedor_ruc: string | null
+          saldo: number | null
           subtotal: number | null
           timbrado: string | null
           timbrado_vencimiento: string | null
           tipo_cambio: number | null
           tipo_operacion: string
           total: number
+          updated_at: string | null
+        }
+      }
+      notas_credito: {
+        Row: {
+          archivo_mime: string | null
+          archivo_nombre: string | null
+          archivo_path: string | null
+          cdc: string | null
+          contribuyente_id: string
+          created_at: string | null
+          created_by: string | null
+          empresa_id: string
+          exentas: number
+          extraccion_raw: Json | null
+          factura_id: string
+          fecha_nota: string | null
+          gravado_10: number
+          gravado_5: number
+          id: string
+          iva_10: number
+          iva_5: number
+          iva_total: number | null
+          motivo: string | null
+          numero_nota: string | null
+          observaciones: string | null
+          subtotal: number | null
+          timbrado: string | null
+          timbrado_vencimiento: string | null
+          total: number
+          updated_at: string | null
+        }
+      }
+      pagos_factura: {
+        Row: {
+          archivo_mime: string | null
+          archivo_nombre: string | null
+          archivo_path: string | null
+          contribuyente_id: string
+          created_at: string | null
+          created_by: string | null
+          empresa_id: string
+          factura_id: string
+          fecha_pago: string
+          id: string
+          medio_pago: string
+          monto: number
+          observaciones: string | null
+          referencia: string | null
           updated_at: string | null
         }
       }

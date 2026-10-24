@@ -24,9 +24,11 @@ export async function subirArchivoFactura(
   empresaId: string,
   contribuyenteId: string,
   archivo: File,
+  /** Distingue de un vistazo, en Storage, a que documento pertenece el archivo. */
+  prefijo?: 'nota' | 'pago',
 ): Promise<{ path: string; nombre: string; mime: string } | { error: string }> {
   const ext = extensionDe(archivo.type, archivo.name)
-  const nombreArchivo = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+  const nombreArchivo = `${prefijo ? `${prefijo}-` : ''}${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
   const path = `${empresaId}/${contribuyenteId}/${nombreArchivo}`
 
   const { error } = await supabase.storage.from(BUCKET).upload(path, archivo, {

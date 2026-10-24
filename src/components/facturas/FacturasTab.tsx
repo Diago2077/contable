@@ -1,4 +1,4 @@
-import { AlertTriangle, ChevronLeft, ChevronRight, Plus, Receipt, Search } from 'lucide-react'
+import { AlertTriangle, ChevronLeft, ChevronRight, Download, Loader2, Plus, Receipt, Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -11,10 +11,12 @@ import { Input, Select } from '@/components/ui/field'
 import { ConfirmModal } from '@/components/ui/modal'
 import { FILTROS_VACIOS, useFacturas, type FiltrosFacturas } from '@/hooks/useFacturas'
 import { usePlanCuentas } from '@/hooks/usePlanCuentas'
+import { etiquetaEstadoPago, TONO_ESTADO_PAGO } from '@/lib/cobros'
 import type { FacturaConRelaciones } from '@/lib/database.types'
+import { descargarExcel } from '@/lib/exportarFacturas'
 import { formatFecha, formatMontoConMoneda } from '@/lib/format'
 
-export function FacturasTab({ contribuyenteId }: { contribuyenteId: string }) {
+export function FacturasTab({ contribuyenteId, razonSocial }: { contribuyenteId: string; razonSocial: string }) {
   const { data: planCuentas } = usePlanCuentas(contribuyenteId)
 
   const [filtros, setFiltros] = useState<FiltrosFacturas>(FILTROS_VACIOS)
@@ -30,7 +32,7 @@ export function FacturasTab({ contribuyenteId }: { contribuyenteId: string }) {
     return () => clearTimeout(t)
   }, [busquedaInput])
 
-  const { data, total, paginas, loading, error, refetch, actualizar, eliminar } = useFacturas(
+  const { data, total, paginas, loading, error, refetch, actualizar, eliminar, traerParaExportar } = useFacturas(
     contribuyenteId,
     filtros,
     pagina,
@@ -40,6 +42,7 @@ export function FacturasTab({ contribuyenteId }: { contribuyenteId: string }) {
   const [modalEditar, setModalEditar] = useState<FacturaConRelaciones | null>(null)
   const [modalEliminar, setModalEliminar] = useState<FacturaConRelaciones | null>(null)
   const [eliminando, setEliminando] = useState(false)
+  const [exportando, setExportando] = useState(false)
 
   function actualizarFiltro<K extends keyof FiltrosFacturas>(key: K, valor: FiltrosFacturas[K]) {
     setFiltros((f) => ({ ...f, [key]: valor }))
@@ -47,7 +50,31 @@ export function FacturasTab({ contribuyenteId }: { contribuyenteId: string }) {
   }
 
   const hayFiltrosActivos =
-    filtros.tipoOperacion || filtros.planCuentaId || filtros.desde || filtros.hasta || filtros.busqueda
+    filtros.tipoOperacion ||
+    filtros.planCuentaId ||
+    filtros.estadoPago ||
+    filtros.desde ||
+    filtros.hasta ||
+    filtros.busqueda
+
+  /** Exporta TODAS las facturas que cumplen los filtros, no solo la pagina que se ve. */
+  async function onExportar() {
+    setExportando(true)
+    const { data: todas, error: err } = await traerParaExportar()
+    if (err) {
+      toast.error(err)
+    } else if (todas.length === 0) {
+      toast.info('No hay facturas para exportar con estos filtros.')
+    } else {
+      try {
+        await descargarExcel(todas, razonSocial)
+        toast.success(`${todas.length} ${todas.length === 1 ? 'factura exportada' : 'facturas exportadas'}`)
+      } catch {
+        toast.error('No se pudo generar el archivo de Excel.')
+      }
+    }
+    setExportando(false)
+  }
 
   return (
     <div>
@@ -55,11 +82,27 @@ export function FacturasTab({ contribuyenteId }: { contribuyenteId: string }) {
         <p className="text-xs text-muted-foreground">
           {total} {total === 1 ? 'factura' : 'facturas'}
         </p>
-        <Link to={`/contribuyentes/${contribuyenteId}/facturas/cargar`}>
-          <Button size="sm">
-            <Plus /> Cargar facturas
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onExportar}
+            disabled={exportando || total === 0}
+            title={
+              hayFiltrosActivos
+                ? 'Exporta todas las facturas que cumplen los filtros aplicados, no solo las de esta pagina'
+                : 'Exporta todas las facturas del contribuyente'
+            }
+          >
+            {exportando ? <Loader2 className="animate-spin" /> : <Download />}
+            {exportando ? 'Exportando…' : hayFiltrosActivos ? 'Exportar filtradas' : 'Exportar a Excel'}
           </Button>
-        </Link>
+          <Link to={`/contribuyentes/${contribuyenteId}/facturas/cargar`}>
+            <Button size="sm">
+              <Plus /> Cargar facturas
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">
@@ -92,6 +135,17 @@ export function FacturasTab({ contribuyenteId }: { contribuyenteId: string }) {
               {c.cuenta} — {c.denominacion}
             </option>
           ))}
+        </Select>
+        <Select
+          className="w-auto"
+          value={filtros.estadoPago}
+          onChange={(e) => actualizarFiltro('estadoPago', e.target.value as FiltrosFacturas['estadoPago'])}
+        >
+          <option value="">Todos los estados</option>
+          <option value="pendiente">Pendientes</option>
+          <option value="parcial">Parciales</option>
+          <option value="pagada">Pagadas / cobradas</option>
+          <option value="acreditada">Acreditadas</option>
         </Select>
         <Input
           type="date"
@@ -155,6 +209,8 @@ export function FacturasTab({ contribuyenteId }: { contribuyenteId: string }) {
                   <th className="px-4 py-2.5 font-medium">Proveedor / Cliente</th>
                   <th className="px-4 py-2.5 font-medium">Categoria</th>
                   <th className="px-4 py-2.5 text-right font-medium">Total</th>
+                  <th className="px-4 py-2.5 text-right font-medium">Saldo</th>
+                  <th className="px-4 py-2.5 font-medium">Estado</th>
                 </tr>
               </thead>
               <tbody>
@@ -190,6 +246,16 @@ export function FacturasTab({ contribuyenteId }: { contribuyenteId: string }) {
                             aria-label="El total no coincide con exentas + gravadas"
                           />
                         )}
+                      </td>
+                      <td
+                        className={`px-4 py-2.5 text-right tabular ${f.saldo === 0 ? 'text-muted-foreground' : 'text-foreground'}`}
+                      >
+                        {formatMontoConMoneda(f.saldo, f.moneda)}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <Badge tono={TONO_ESTADO_PAGO[f.estado_pago]}>
+                          {etiquetaEstadoPago(f.estado_pago, f.tipo_operacion)}
+                        </Badge>
                       </td>
                     </tr>
                   )
@@ -235,6 +301,7 @@ export function FacturasTab({ contribuyenteId }: { contribuyenteId: string }) {
           setModalEliminar(modalDetalle)
           setModalDetalle(null)
         }}
+        onCambio={() => refetch({ silencioso: true })}
       />
 
       <EditarFacturaModal
@@ -254,8 +321,8 @@ export function FacturasTab({ contribuyenteId }: { contribuyenteId: string }) {
         mensaje={
           <>
             Se va a eliminar la factura <strong>{modalEliminar?.numero_factura || 'sin numero'}</strong>
-            {modalEliminar?.proveedor_nombre && <> de {modalEliminar.proveedor_nombre}</>}, junto con su archivo.
-            Esta accion no se puede deshacer.
+            {modalEliminar?.proveedor_nombre && <> de {modalEliminar.proveedor_nombre}</>}, junto con su archivo,
+            sus notas de credito y sus pagos. Esta accion no se puede deshacer.
           </>
         }
         procesando={eliminando}

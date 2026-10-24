@@ -46,6 +46,8 @@ interface Body {
   contribuyente_id?: string
   imagen_base64?: string
   mime_type?: string
+  /** Que documento es la imagen. Por defecto, una factura. */
+  tipo_documento?: 'factura' | 'nota_credito'
 }
 
 interface CuentaPlan {
@@ -67,7 +69,7 @@ const ESQUEMA_DETALLE = {
   additionalProperties: false,
 } as const
 
-function esquemaFactura(planCuentas: CuentaPlan[]) {
+export function esquemaFactura(planCuentas: CuentaPlan[]) {
   // Se usa el indice (0, 1, 2...) en vez del uuid real de la cuenta: con un
   // plan de cuentas de varios cientos de filas, mandarle el uuid completo a
   // la IA -- dos veces, una en el prompt y otra en este enum -- multiplica el
@@ -96,6 +98,10 @@ function esquemaFactura(planCuentas: CuentaPlan[]) {
       timbrado: { type: ['string', 'null'] },
       timbrado_vencimiento: { type: ['string', 'null'], description: 'formato DD/MM/AAAA' },
       condicion_venta: { type: ['string', 'null'], enum: ['contado', 'credito', null] },
+      cdc: {
+        type: ['string', 'null'],
+        description: 'CDC de 44 digitos de una factura electronica, sin espacios; null si no figura o no se lee con certeza',
+      },
 
       proveedor_nombre: { type: ['string', 'null'] },
       proveedor_ruc: { type: ['string', 'null'] },
@@ -123,13 +129,62 @@ function esquemaFactura(planCuentas: CuentaPlan[]) {
     },
     required: [
       'tipo_operacion', 'numero_factura', 'fecha_factura', 'timbrado', 'timbrado_vencimiento',
-      'condicion_venta', 'proveedor_nombre', 'proveedor_ruc', 'proveedor_direccion',
+      'condicion_venta', 'cdc', 'proveedor_nombre', 'proveedor_ruc', 'proveedor_direccion',
       'cliente_nombre', 'cliente_ruc', 'cliente_direccion', 'moneda', 'tipo_cambio',
       'exentas', 'gravado_5', 'iva_5', 'gravado_10', 'iva_10', 'total',
       'forma_pago', 'observaciones', 'plan_cuenta_id', 'detalles',
     ],
     additionalProperties: false,
   } as const
+}
+
+// esquemaFactura y esquemaNotaCredito se exportan solo para api/_lib/esquemas.test.ts
+/**
+ * Una nota de credito no repite proveedor ni cliente (son los de la factura
+ * que modifica) ni lleva plan de cuentas: solo lo que la identifica y cuanto
+ * acredita.
+ */
+export function esquemaNotaCredito() {
+  return {
+    type: 'object',
+    properties: {
+      numero_nota: { type: ['string', 'null'], description: 'numero completo de la nota, formato 001-001-0000001' },
+      fecha_nota: { type: ['string', 'null'], description: 'formato DD/MM/AAAA tal como figura en la nota' },
+      timbrado: { type: ['string', 'null'] },
+      timbrado_vencimiento: { type: ['string', 'null'], description: 'formato DD/MM/AAAA' },
+      cdc: {
+        type: ['string', 'null'],
+        description: 'CDC de 44 digitos de una nota de credito electronica, sin espacios; null si no figura o no se lee con certeza',
+      },
+      factura_numero: {
+        type: ['string', 'null'],
+        description: 'numero de la factura que esta nota modifica, tal como figura en la nota (ej. 001-001-0000124)',
+      },
+      motivo: { type: ['string', 'null'], description: 'motivo de la nota: devolucion, descuento, ajuste de precio, anulacion, etc.' },
+
+      exentas: { type: 'number', description: 'monto acreditado en la columna Exentas, 0 si no tiene' },
+      gravado_5: { type: 'number', description: 'monto acreditado en Gravadas 5% (IVA incluido), 0 si no tiene' },
+      iva_5: { type: 'number', description: 'IVA liquidado sobre gravado_5, 0 si no tiene' },
+      gravado_10: { type: 'number', description: 'monto acreditado en Gravadas 10% (IVA incluido), 0 si no tiene' },
+      iva_10: { type: 'number', description: 'IVA liquidado sobre gravado_10, 0 si no tiene' },
+      total: { type: 'number', description: 'total acreditado: exentas + gravado_5 + gravado_10' },
+
+      observaciones: { type: ['string', 'null'] },
+    },
+    required: [
+      'numero_nota', 'fecha_nota', 'timbrado', 'timbrado_vencimiento', 'cdc', 'factura_numero', 'motivo',
+      'exentas', 'gravado_5', 'iva_5', 'gravado_10', 'iva_10', 'total', 'observaciones',
+    ],
+    additionalProperties: false,
+  } as const
+}
+
+const CAMPOS_MONTO = ['exentas', 'gravado_5', 'iva_5', 'gravado_10', 'iva_10', 'total'] as const
+
+/** Deja solo los digitos del CDC: en el papel se imprime en grupos de cuatro. */
+function digitosCdc(valor: unknown): string | null {
+  const digitos = String(valor ?? '').replace(/\D/g, '')
+  return digitos || null
 }
 
 function prompt(rucContribuyente: string, razonSocial: string, planCuentas: CuentaPlan[]): string {
@@ -152,11 +207,32 @@ Reglas:
 - Las fechas van en formato DD/MM/AAAA tal como aparecen en la factura.
 - Extrae TODAS las lineas de detalle que encuentres.
 - No inventes datos que no esten en la imagen.
+- Si la factura es ELECTRONICA, trae impreso un CDC (Codigo de Control) de 44 digitos, en grupos de cuatro, cerca del codigo QR o al pie ("Consulte la validez de esta Factura Electronica con el numero de CDC impreso abajo"). Devolvelo en cdc con los 44 digitos juntos, sin espacios. No lo confundas con el timbrado (8 digitos) ni con el numero de factura. Si es una factura preimpresa sin CDC, o no lo podes leer con certeza, devolve null.
 ${
   listaCuentas
     ? `\nEste es el plan de cuentas del contribuyente, para categorizar la factura segun el detalle de mercaderias/servicios:\n${listaCuentas}\n\nElegi el indice de la cuenta que mejor clasifique la factura. Reglas para elegirla:\n- Se elige por el CONCEPTO de lo que se compro o vendio (lo que dice el detalle de mercaderias/servicios), nunca por la contrapartida del asiento.\n- Si la factura es una COMPRA, corresponde una cuenta de gasto o costo. Si es una VENTA, una cuenta de ingreso o venta.\n- No elijas cuentas de pasivo (deudas del estilo "a pagar"), ni de activo, ni de patrimonio.\n- Si ninguna calza perfecto, elegi la mas parecida que cumpla lo anterior.\nDevolve el numero de indice tal como aparece en la lista, no el codigo de la cuenta.`
     : ''
 }`
+}
+
+function promptNotaCredito(rucContribuyente: string, razonSocial: string): string {
+  return `Sos un asistente que extrae datos de NOTAS DE CREDITO paraguayas (timbradas por la SET) a partir de una imagen.
+
+Una nota de credito reduce el importe de una factura ya emitida: devolucion de mercaderias, descuento, bonificacion, ajuste de precio o anulacion total o parcial.
+
+El contribuyente que esta cargando esta nota es:
+  RUC: ${rucContribuyente}
+  Razon social: ${razonSocial}
+
+Reglas:
+- La nota hace referencia a la factura que modifica ("Comprobante de venta", "Factura N°" o "Documento asociado"). Devolve su numero en factura_numero, tal como figura.
+- En motivo pone la razon de la nota tal como esta escrita; si no figura, null.
+- Las columnas "Exentas", "5%" y "10%" vienen CON el IVA incluido. El total es la suma de esas tres columnas.
+- Los montos son numeros POSITIVOS, aunque la nota los muestre con signo negativo o entre parentesis. Sin simbolo de moneda ni separadores de miles.
+- Las fechas van en formato DD/MM/AAAA tal como aparecen en la nota.
+- Si la nota es ELECTRONICA, trae impreso un CDC de 44 digitos, en grupos de cuatro, cerca del codigo QR o al pie. Devolvelo en cdc con los 44 digitos juntos, sin espacios. No lo confundas con el timbrado ni con el numero de la nota. Si no tiene CDC, o no lo podes leer con certeza, devolve null.
+- Si un campo no esta visible en la imagen, devolve null (o 0 para los montos).
+- No inventes datos que no esten en la imagen.`
 }
 
 /**
@@ -178,6 +254,11 @@ const handler: ApiHandler = async (req, res) => {
   const body = leerBody<Body>(req)
   if (!body.contribuyente_id) return error(res, 400, 'Falta el contribuyente.')
   if (!body.imagen_base64) return error(res, 400, 'Falta la imagen.')
+  const tipoDocumento = body.tipo_documento ?? 'factura'
+  if (tipoDocumento !== 'factura' && tipoDocumento !== 'nota_credito') {
+    return error(res, 400, 'Tipo de documento no valido.')
+  }
+  const esNota = tipoDocumento === 'nota_credito'
   if (body.imagen_base64.length > MAXIMO_BASE64) {
     return error(res, 413, 'La imagen es demasiado pesada. Proba con una foto de menor resolucion.')
   }
@@ -228,13 +309,20 @@ const handler: ApiHandler = async (req, res) => {
   // estilo "5132 HONORARIOS PROFESIONALES") no admiten asientos, asi que no
   // tiene sentido que la IA pueda elegirlas -- y son varias decenas de filas
   // menos que mandar en el prompt.
-  const { data: planCuentas } = await admin
-    .from('plan_cuentas')
-    .select('id, cuenta, denominacion')
-    .eq('contribuyente_id', body.contribuyente_id)
-    .eq('activo', true)
-    .eq('asentable', true)
-    .order('cuenta', { ascending: true })
+  //
+  // Una nota de credito no se categoriza (hereda la cuenta de su factura),
+  // asi que se ahorra tambien el costo de mandar el plan entero.
+  const planCuentas: CuentaPlan[] = esNota
+    ? []
+    : ((
+        await admin
+          .from('plan_cuentas')
+          .select('id, cuenta, denominacion')
+          .eq('contribuyente_id', body.contribuyente_id)
+          .eq('activo', true)
+          .eq('asentable', true)
+          .order('cuenta', { ascending: true })
+      ).data ?? [])
 
   const { data: configDb } = await admin.from('configuracion_ia').select('*').eq('id', true).maybeSingle()
   const config = configDb ?? CONFIG_POR_DEFECTO
@@ -294,7 +382,12 @@ const handler: ApiHandler = async (req, res) => {
           {
             role: 'user',
             content: [
-              { type: 'text', text: prompt(contribuyente.ruc, contribuyente.razon_social, planCuentas ?? []) },
+              {
+                type: 'text',
+                text: esNota
+                  ? promptNotaCredito(contribuyente.ruc, contribuyente.razon_social)
+                  : prompt(contribuyente.ruc, contribuyente.razon_social, planCuentas),
+              },
               {
                 type: 'image_url',
                 image_url: { url: `data:${mime};base64,${body.imagen_base64}`, detail: 'high' },
@@ -304,7 +397,9 @@ const handler: ApiHandler = async (req, res) => {
         ],
         response_format: {
           type: 'json_schema',
-          json_schema: { name: 'factura', strict: true, schema: esquemaFactura(planCuentas ?? []) },
+          json_schema: esNota
+            ? { name: 'nota_credito', strict: true, schema: esquemaNotaCredito() }
+            : { name: 'factura', strict: true, schema: esquemaFactura(planCuentas) },
         },
       }),
     })
@@ -368,22 +463,30 @@ const handler: ApiHandler = async (req, res) => {
       [k: string]: unknown
     }
 
-    // La IA devuelve el indice de la lista, no el uuid real: se traduce aca
-    // antes de mandarselo al cliente, que espera un plan_cuenta_id de verdad.
-    if (datos.plan_cuenta_id != null) {
-      const indice = Number(datos.plan_cuenta_id)
-      datos.plan_cuenta_id = Number.isInteger(indice) ? (planCuentas?.[indice]?.id ?? null) : null
-    }
+    datos.cdc = digitosCdc(datos.cdc)
 
-    // En una venta el proveedor es el propio contribuyente, asi que se
-    // completa con lo que ya tenemos registrado en vez de esperar que el
-    // modelo lo lea de la imagen. Cuando el RUC del emisor coincide con el
-    // del contribuyente que se le paso como contexto, el modelo tiende a dar
-    // esos campos por sabidos y los devuelve en null.
-    if (datos.tipo_operacion === 'venta') {
-      datos.proveedor_nombre = contribuyente.razon_social
-      datos.proveedor_ruc = contribuyente.ruc
-      datos.proveedor_direccion = contribuyente.direccion ?? null
+    if (esNota) {
+      // Los montos de una nota se guardan siempre en positivo: la nota resta,
+      // pero el signo lo pone quien la usa. Algunas vienen impresas en negativo.
+      for (const campo of CAMPOS_MONTO) datos[campo] = Math.abs(Number(datos[campo]) || 0)
+    } else {
+      // La IA devuelve el indice de la lista, no el uuid real: se traduce aca
+      // antes de mandarselo al cliente, que espera un plan_cuenta_id de verdad.
+      if (datos.plan_cuenta_id != null) {
+        const indice = Number(datos.plan_cuenta_id)
+        datos.plan_cuenta_id = Number.isInteger(indice) ? (planCuentas[indice]?.id ?? null) : null
+      }
+
+      // En una venta el proveedor es el propio contribuyente, asi que se
+      // completa con lo que ya tenemos registrado en vez de esperar que el
+      // modelo lo lea de la imagen. Cuando el RUC del emisor coincide con el
+      // del contribuyente que se le paso como contexto, el modelo tiende a dar
+      // esos campos por sabidos y los devuelve en null.
+      if (datos.tipo_operacion === 'venta') {
+        datos.proveedor_nombre = contribuyente.razon_social
+        datos.proveedor_ruc = contribuyente.ruc
+        datos.proveedor_direccion = contribuyente.direccion ?? null
+      }
     }
 
     // Se respeta el IVA que leyo el modelo mientras cuadre con las gravadas

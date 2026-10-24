@@ -20,9 +20,19 @@ export type Rol = 'super_admin' | 'admin' | 'usuario'
 export type TipoOperacion = 'compra' | 'venta'
 export type TipoPersona = 'fisica' | 'juridica'
 export type CondicionVenta = 'contado' | 'credito'
+export type EstadoPago = 'pendiente' | 'parcial' | 'pagada' | 'acreditada'
+export type MedioPago = 'efectivo' | 'transferencia' | 'cheque' | 'tarjeta' | 'otro'
 
 export const REGIMENES = ['IRE General', 'IRE SIMPLE', 'RESIMPLE', 'IRP', 'Solo IVA'] as const
 export const MONEDAS = ['PYG', 'USD', 'BRL', 'ARS', 'EUR'] as const
+
+export const MEDIOS_PAGO: Array<{ value: MedioPago; label: string }> = [
+  { value: 'transferencia', label: 'Transferencia' },
+  { value: 'efectivo', label: 'Efectivo' },
+  { value: 'cheque', label: 'Cheque' },
+  { value: 'tarjeta', label: 'Tarjeta' },
+  { value: 'otro', label: 'Otro' },
+]
 
 export const ROL_LABEL: Record<Rol, string> = {
   super_admin: 'Super admin',
@@ -142,6 +152,8 @@ export interface Factura {
   timbrado: string | null
   timbrado_vencimiento: string | null
   condicion_venta: CondicionVenta | null
+  /** Codigo de control de la factura electronica: 44 digitos, sin espacios. */
+  cdc: string | null
 
   proveedor_nombre: string | null
   proveedor_ruc: string | null
@@ -163,6 +175,14 @@ export interface Factura {
   iva_total: number
   /** Generada por Postgres: total - iva_total. Nunca se envia en un insert. */
   subtotal: number
+
+  /** Los mantiene un trigger a partir de notas_credito y pagos_factura. Nunca se envian. */
+  notas_credito_total: number
+  pagado_total: number
+  /** Generada: total - notas de credito - pagos. Negativa si se pago de mas. */
+  saldo: number
+  /** Generado a partir de los totales; ver la migracion 018. */
+  estado_pago: EstadoPago
 
   forma_pago: string | null
   observaciones: string | null
@@ -189,8 +209,71 @@ export interface FacturaDetalle {
   tasa_iva: number | null
 }
 
+/**
+ * Nota de credito que reduce una factura. Moneda y tipo de operacion se
+ * heredan de la factura; los montos van en positivo.
+ */
+export interface NotaCredito {
+  id: string
+  empresa_id: string
+  contribuyente_id: string
+  factura_id: string
+  numero_nota: string | null
+  fecha_nota: string | null
+  timbrado: string | null
+  timbrado_vencimiento: string | null
+  cdc: string | null
+  motivo: string | null
+  exentas: number
+  gravado_5: number
+  gravado_10: number
+  iva_5: number
+  iva_10: number
+  total: number
+  /** Generada por Postgres: iva_5 + iva_10. */
+  iva_total: number
+  /** Generada por Postgres: total - iva_total. */
+  subtotal: number
+  observaciones: string | null
+  archivo_path: string | null
+  archivo_nombre: string | null
+  archivo_mime: string | null
+  extraccion_raw: unknown | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** Comprobante de pago de una compra, o de cobro de una venta. */
+export interface PagoFactura {
+  id: string
+  empresa_id: string
+  contribuyente_id: string
+  factura_id: string
+  fecha_pago: string
+  monto: number
+  medio_pago: MedioPago
+  referencia: string | null
+  observaciones: string | null
+  archivo_path: string | null
+  archivo_nombre: string | null
+  archivo_mime: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
 /** Campos que la base calcula sola y que no se mandan nunca en un insert/update. */
-type Generados = 'id' | 'created_at' | 'updated_at' | 'iva_total' | 'subtotal'
+type Generados =
+  | 'id'
+  | 'created_at'
+  | 'updated_at'
+  | 'iva_total'
+  | 'subtotal'
+  | 'notas_credito_total'
+  | 'pagado_total'
+  | 'saldo'
+  | 'estado_pago'
 
 export type FacturaInsert = Omit<Factura, Generados>
 export type FacturaUpdate = Partial<FacturaInsert>
@@ -201,11 +284,22 @@ export type PlanCuentaUpdate = Partial<PlanCuentaInsert>
 export type EmpresaInsert = Omit<Empresa, 'id' | 'created_at'>
 export type EmpresaUpdate = Partial<EmpresaInsert>
 export type FacturaDetalleInsert = Omit<FacturaDetalle, 'id'>
+export type NotaCreditoInsert = Omit<NotaCredito, 'id' | 'created_at' | 'updated_at' | 'iva_total' | 'subtotal'>
+export type NotaCreditoUpdate = Partial<
+  Omit<NotaCreditoInsert, 'empresa_id' | 'contribuyente_id' | 'factura_id' | 'created_by' | 'extraccion_raw'>
+>
+export type PagoFacturaInsert = Omit<PagoFactura, 'id' | 'created_at' | 'updated_at'>
+export type PagoFacturaUpdate = Partial<
+  Omit<PagoFacturaInsert, 'empresa_id' | 'contribuyente_id' | 'factura_id' | 'created_by'>
+>
 
 /** Factura con sus relaciones resueltas, tal como la devuelven los listados. */
 export interface FacturaConRelaciones extends Factura {
   plan_cuentas: Pick<PlanCuenta, 'id' | 'cuenta' | 'denominacion'> | null
   factura_detalles?: FacturaDetalle[]
+  /** Solo vienen cuando el listado los pide (la exportacion a Excel). */
+  notas_credito?: NotaCredito[]
+  pagos_factura?: PagoFactura[]
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -231,6 +325,8 @@ export type ChequeoDeEsquema = [
   Afirmar<ColumnasExisten<PlanCuenta, Fila<'plan_cuentas'>>>,
   Afirmar<ColumnasExisten<Factura, Fila<'facturas'>>>,
   Afirmar<ColumnasExisten<FacturaDetalle, Fila<'factura_detalles'>>>,
+  Afirmar<ColumnasExisten<NotaCredito, Fila<'notas_credito'>>>,
+  Afirmar<ColumnasExisten<PagoFactura, Fila<'pagos_factura'>>>,
   Afirmar<ColumnasExisten<UsoIA, Fila<'uso_ia'>>>,
   Afirmar<ColumnasExisten<ConfiguracionIA, Fila<'configuracion_ia'>>>,
 ]

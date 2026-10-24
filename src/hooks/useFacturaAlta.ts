@@ -1,5 +1,6 @@
 import { useAuth } from './useAuth'
 import type { ExtraccionIA, FacturaFormState } from '@/lib/extraccion'
+import type { NotaCreditoExtraccion } from '@/lib/notaCredito'
 import { formStateADetalles, formStateAFacturaInsert } from '@/lib/extraccion'
 import { apiFetch, supabase } from '@/lib/supabase'
 import { eliminarArchivoFactura, subirArchivoFactura } from '@/lib/storage'
@@ -8,18 +9,30 @@ import { eliminarArchivoFactura, subirArchivoFactura } from '@/lib/storage'
 export function useFacturaAlta() {
   const { user, empresa } = useAuth()
 
-  async function extraer(contribuyenteId: string, base64: string, mime: string) {
+  async function extraerDocumento<T>(
+    contribuyenteId: string,
+    base64: string,
+    mime: string,
+    tipoDocumento: 'factura' | 'nota_credito',
+  ) {
     try {
-      const respuesta = await apiFetch<{ ok: boolean; datos: ExtraccionIA }>('/api/extraer', {
+      const respuesta = await apiFetch<{ ok: boolean; datos: T }>('/api/extraer', {
         contribuyente_id: contribuyenteId,
         imagen_base64: base64,
         mime_type: mime,
+        tipo_documento: tipoDocumento,
       })
       return { datos: respuesta.datos, error: null }
     } catch (e) {
-      return { datos: null, error: e instanceof Error ? e.message : 'No se pudo extraer la factura.' }
+      return { datos: null, error: e instanceof Error ? e.message : 'No se pudo leer el documento.' }
     }
   }
+
+  const extraer = (contribuyenteId: string, base64: string, mime: string) =>
+    extraerDocumento<ExtraccionIA>(contribuyenteId, base64, mime, 'factura')
+
+  const extraerNota = (contribuyenteId: string, base64: string, mime: string) =>
+    extraerDocumento<NotaCreditoExtraccion>(contribuyenteId, base64, mime, 'nota_credito')
 
   /**
    * Sube el archivo original y crea la factura + detalles en una transaccion.
@@ -51,15 +64,18 @@ export function useFacturaAlta() {
     if (error) {
       await eliminarArchivoFactura(subida.path)
       const duplicada = error.code === '23505'
+      const cdcInvalido = error.code === '23514' && /cdc/i.test(error.message)
       return {
         error: duplicada
           ? 'Esta factura ya fue cargada para este contribuyente.'
-          : 'No se pudo guardar la factura.',
+          : cdcInvalido
+            ? 'El CDC tiene que tener 44 digitos: revisalo o dejalo vacio.'
+            : 'No se pudo guardar la factura.',
       }
     }
 
     return { id: id as string, error: null }
   }
 
-  return { extraer, guardar }
+  return { extraer, extraerNota, guardar }
 }

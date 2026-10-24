@@ -9,7 +9,7 @@ import { MontoInput } from '@/components/ui/monto-input'
 import type { PlanCuenta } from '@/lib/database.types'
 import { MONEDAS } from '@/lib/database.types'
 import type { FacturaFormState } from '@/lib/extraccion'
-import { ivaNoCierra, totalCalculado } from '@/lib/extraccion'
+import { advertenciasCdc, ivaNoCierra, totalCalculado } from '@/lib/extraccion'
 import { parseMonto, rucSospechoso } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -162,6 +162,20 @@ export function RevisionFacturaCard({
                 <Input value={form.forma_pago} onChange={(e) => campo('forma_pago', e.target.value)} />
               </Field>
             </div>
+
+            <Field
+              label="CDC (factura electronica)"
+              warning={advertenciasCdc(form).join(' ') || undefined}
+              hint="44 digitos junto al codigo QR. Vacio si es una factura preimpresa."
+            >
+              <Input
+                value={form.cdc}
+                onChange={(e) => campo('cdc', e.target.value)}
+                inputMode="numeric"
+                className="tabular text-xs"
+                placeholder="0144 4444 …"
+              />
+            </Field>
 
             <div>
               <p className="mb-2 text-xs font-semibold text-muted-foreground">Proveedor</p>

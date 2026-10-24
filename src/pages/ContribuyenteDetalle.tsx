@@ -77,7 +77,7 @@ export default function ContribuyenteDetalle() {
         </TabButton>
       </div>
 
-      {tab === 'facturas' && <FacturasTab contribuyenteId={contribuyente.id} />}
+      {tab === 'facturas' && <FacturasTab contribuyenteId={contribuyente.id} razonSocial={contribuyente.razon_social} />}
 
       {tab === 'plan-cuentas' && (
         <PlanCuentasTab contribuyenteId={contribuyente.id} empresaId={contribuyente.empresa_id} />

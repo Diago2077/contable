@@ -1,3 +1,4 @@
+import { normalizarCdc, revisarCdc } from './cdc'
 import type { Factura, FacturaDetalleInsert, FacturaInsert, FacturaUpdate, TipoOperacion } from './database.types'
 import { formatFecha, parseFecha, parseMonto } from './format'
 
@@ -9,6 +10,8 @@ export interface ExtraccionIA {
   timbrado: string | null
   timbrado_vencimiento: string | null
   condicion_venta: 'contado' | 'credito' | null
+  /** 44 digitos de una factura electronica; null si es una factura preimpresa. */
+  cdc: string | null
   proveedor_nombre: string | null
   proveedor_ruc: string | null
   proveedor_direccion: string | null
@@ -45,6 +48,7 @@ export interface FacturaFormState {
   timbrado: string
   timbrado_vencimiento: string // yyyy-mm-dd
   condicion_venta: '' | 'contado' | 'credito'
+  cdc: string
   proveedor_nombre: string
   proveedor_ruc: string
   proveedor_direccion: string
@@ -82,6 +86,7 @@ export function extraccionAFormState(datos: ExtraccionIA): FacturaFormState {
     timbrado: s(datos.timbrado),
     timbrado_vencimiento: parseFecha(datos.timbrado_vencimiento) ?? '',
     condicion_venta: datos.condicion_venta === 'credito' ? 'credito' : datos.condicion_venta === 'contado' ? 'contado' : '',
+    cdc: normalizarCdc(datos.cdc),
     proveedor_nombre: s(datos.proveedor_nombre),
     proveedor_ruc: s(datos.proveedor_ruc),
     proveedor_direccion: s(datos.proveedor_direccion),
@@ -138,6 +143,7 @@ export function formStateAFacturaInsert(args: {
     timbrado: form.timbrado.trim() || null,
     timbrado_vencimiento: form.timbrado_vencimiento || null,
     condicion_venta: form.condicion_venta || null,
+    cdc: normalizarCdc(form.cdc) || null,
     proveedor_nombre: form.proveedor_nombre.trim() || null,
     proveedor_ruc: form.proveedor_ruc.trim() || null,
     proveedor_direccion: form.proveedor_direccion.trim() || null,
@@ -176,7 +182,7 @@ export function formStateADetalles(form: FacturaFormState): Omit<FacturaDetalleI
 }
 
 /** total = exentas + gravado_5 + gravado_10, para avisar si no cierra. */
-export function totalCalculado(form: FacturaFormState): number {
+export function totalCalculado(form: Pick<FacturaFormState, 'exentas' | 'gravado_5' | 'gravado_10'>): number {
   return parseMonto(form.exentas) + parseMonto(form.gravado_5) + parseMonto(form.gravado_10)
 }
 
@@ -191,7 +197,10 @@ export function ivaDeGravado(gravado: number, tasa: 5 | 10): number {
 }
 
 /** Avisa si el IVA cargado dejo de corresponderse con las gravadas. */
-export function ivaNoCierra(form: FacturaFormState, tasa: 5 | 10): boolean {
+export function ivaNoCierra(
+  form: Pick<FacturaFormState, 'iva_5' | 'iva_10' | 'gravado_5' | 'gravado_10'>,
+  tasa: 5 | 10,
+): boolean {
   const iva = tasa === 10 ? form.iva_10 : form.iva_5
   const gravado = tasa === 10 ? form.gravado_10 : form.gravado_5
   if (iva.trim() === '' && gravado.trim() === '') return false
@@ -207,6 +216,7 @@ export function facturaAFormState(f: Factura): FacturaFormState {
     timbrado: s(f.timbrado),
     timbrado_vencimiento: f.timbrado_vencimiento ?? '',
     condicion_venta: f.condicion_venta ?? '',
+    cdc: s(f.cdc),
     proveedor_nombre: s(f.proveedor_nombre),
     proveedor_ruc: s(f.proveedor_ruc),
     proveedor_direccion: s(f.proveedor_direccion),
@@ -238,6 +248,7 @@ export function formStateAFacturaUpdate(form: FacturaFormState): FacturaUpdate {
     timbrado: form.timbrado.trim() || null,
     timbrado_vencimiento: form.timbrado_vencimiento || null,
     condicion_venta: form.condicion_venta || null,
+    cdc: normalizarCdc(form.cdc) || null,
     proveedor_nombre: form.proveedor_nombre.trim() || null,
     proveedor_ruc: form.proveedor_ruc.trim() || null,
     proveedor_direccion: form.proveedor_direccion.trim() || null,
@@ -255,4 +266,18 @@ export function formStateAFacturaUpdate(form: FacturaFormState): FacturaUpdate {
     forma_pago: form.forma_pago.trim() || null,
     observaciones: form.observaciones.trim() || null,
   }
+}
+
+/**
+ * Problemas del CDC cargado en el formulario, cruzado contra los demas
+ * campos. El emisor de la factura es siempre el proveedor: en una venta el
+ * proveedor es el propio contribuyente, y api/extraer.ts lo completa asi.
+ */
+export function advertenciasCdc(form: FacturaFormState): string[] {
+  return revisarCdc(form.cdc, {
+    rucEmisor: form.proveedor_ruc,
+    numero: form.numero_factura,
+    fecha: form.fecha_factura,
+    esperado: 'factura',
+  })
 }

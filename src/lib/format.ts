@@ -80,6 +80,12 @@ export function parseMonto(entrada: string | number | null | undefined): number 
   let s = String(entrada).replace(/[^\d.,-]/g, '').trim()
   if (!s) return 0
 
+  // El signo se separa antes de interpretar los puntos y comas: con el menos
+  // adelante, '-200.000' no pasaba por la regla de los puntos de miles y se
+  // leia como -200 en vez de -200000.
+  const negativo = s.startsWith('-')
+  if (negativo) s = s.slice(1)
+
   const ultimaComa = s.lastIndexOf(',')
   const ultimoPunto = s.lastIndexOf('.')
 
@@ -98,7 +104,8 @@ export function parseMonto(entrada: string | number | null | undefined): number 
   }
 
   const n = Number(s)
-  return Number.isFinite(n) ? n : 0
+  if (!Number.isFinite(n)) return 0
+  return negativo ? -n : n
 }
 
 /**

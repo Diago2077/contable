@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Cargando } from '@/components/ui/estado'
 import { ImageLightbox } from '@/components/ui/image-lightbox'
 import { Modal } from '@/components/ui/modal'
+import { CobrosFactura } from '@/components/facturas/CobrosFactura'
 import type { FacturaConRelaciones, FacturaDetalle } from '@/lib/database.types'
 import { formatFecha, formatMonto, formatMontoConMoneda, formatRuc } from '@/lib/format'
 import { supabase } from '@/lib/supabase'
@@ -16,11 +17,14 @@ export function FacturaDetalleModal({
   onCerrar,
   onEditar,
   onEliminar,
+  onCambio,
 }: {
   factura: FacturaConRelaciones | null
   onCerrar: () => void
   onEditar: () => void
   onEliminar: () => void
+  /** Se cargo, edito o borro una nota de credito o un pago: el listado de atras tiene que releerse. */
+  onCambio: () => void
 }) {
   const [urlArchivo, setUrlArchivo] = useState<string | null>(null)
   const [detalles, setDetalles] = useState<FacturaDetalle[]>([])
@@ -111,6 +115,13 @@ export function FacturaDetalleModal({
             ]}
           />
 
+          {factura.cdc && (
+            <div>
+              <p className="text-xs text-muted-foreground">CDC</p>
+              <p className="tabular break-all text-xs text-foreground">{factura.cdc}</p>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="mb-1.5 text-xs font-semibold text-muted-foreground">Proveedor</p>
@@ -148,6 +159,8 @@ export function FacturaDetalleModal({
               </p>
             )}
           </div>
+
+          <CobrosFactura factura={factura} onCambio={onCambio} />
 
           {factura.observaciones && (
             <div>

@@ -1,5 +1,3 @@
-import { pdfAPrimeraPagina } from './pdf'
-
 export const TIPOS_PERMITIDOS = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
 export const EXTENSIONES_PERMITIDAS = '.jpg,.jpeg,.png,.webp,.pdf'
 const LIMITE_MB = 15
@@ -76,6 +74,9 @@ export async function prepararParaExtraccion(
   archivo: File,
 ): Promise<{ base64: string; mime: string; previewDataUrl: string; paginas: number }> {
   if (archivo.type === 'application/pdf') {
+    // pdf.js pesa ~450 kB y solo hace falta cuando se sube un PDF: se importa
+    // aca adentro para que no viaje con el bundle de todas las pantallas
+    const { pdfAPrimeraPagina } = await import('./pdf')
     const { dataUrl, paginas } = await pdfAPrimeraPagina(archivo, LADO_MAXIMO, CALIDAD_JPEG)
     return { base64: dataUrl.split(',')[1] ?? '', mime: 'image/jpeg', previewDataUrl: dataUrl, paginas }
   }

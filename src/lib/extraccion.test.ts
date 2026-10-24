@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Factura } from './database.types'
 import {
+  advertenciasCdc,
   extraccionAFormState,
   facturaAFormState,
   formStateADetalles,
@@ -21,6 +22,7 @@ function extraccion(parcial: Partial<ExtraccionIA> = {}): ExtraccionIA {
     timbrado: null,
     timbrado_vencimiento: null,
     condicion_venta: null,
+    cdc: null,
     proveedor_nombre: null,
     proveedor_ruc: null,
     proveedor_direccion: null,
@@ -175,5 +177,63 @@ describe('facturaAFormState', () => {
     expect(f.plan_cuenta_id).toBe('pc1')
     // Los detalles no se editan desde el listado
     expect(f.detalles).toEqual([])
+  })
+})
+
+// Ejemplo oficial del Manual Tecnico de SIFEN (ver cdc.test.ts)
+const CDC = '01444444017001001001452822017012515873260988'
+
+describe('CDC en el formulario', () => {
+  it('lo deja solo con digitos al leerlo de la extraccion', () => {
+    const impreso = CDC.replace(/(.{4})/g, '$1 ').trim()
+    expect(extraccionAFormState(extraccion({ cdc: impreso })).cdc).toBe(CDC)
+  })
+
+  it('queda vacio cuando la factura no es electronica', () => {
+    expect(extraccionAFormState(extraccion({ cdc: null })).cdc).toBe('')
+  })
+
+  it('se guarda como null si esta vacio y sin espacios si no', () => {
+    const base = {
+      empresaId: 'e1',
+      contribuyenteId: 'c1',
+      createdBy: 'u1',
+      archivoPath: null,
+      archivoNombre: null,
+      archivoMime: null,
+      extraccionRaw: null,
+    }
+    expect(formStateAFacturaInsert({ ...base, form: form({ cdc: '' }) }).cdc).toBeNull()
+    expect(formStateAFacturaInsert({ ...base, form: form({ cdc: '0144 4444 0170' }) }).cdc).toBe('014444440170')
+  })
+
+  it('al editar una factura guardada carga su CDC', () => {
+    expect(facturaAFormState({ cdc: CDC } as Factura).cdc).toBe(CDC)
+    expect(facturaAFormState({ cdc: null } as Factura).cdc).toBe('')
+  })
+})
+
+describe('advertenciasCdc', () => {
+  const coherente = form({
+    cdc: CDC,
+    proveedor_ruc: '44444401-7',
+    numero_factura: '001-001-0014528',
+    fecha_factura: '2017-01-25',
+  })
+
+  it('no avisa cuando el CDC cierra con el resto de la factura', () => {
+    expect(advertenciasCdc(coherente)).toEqual([])
+  })
+
+  it('no avisa si no hay CDC', () => {
+    expect(advertenciasCdc(form({ cdc: '' }))).toEqual([])
+  })
+
+  it('avisa si el RUC del proveedor no es el del CDC', () => {
+    expect(advertenciasCdc({ ...coherente, proveedor_ruc: '80137878-8' })[0]).toMatch(/RUC del emisor/)
+  })
+
+  it('avisa si el numero de factura es otro', () => {
+    expect(advertenciasCdc({ ...coherente, numero_factura: '001-001-0000001' })[0]).toMatch(/número/)
   })
 })

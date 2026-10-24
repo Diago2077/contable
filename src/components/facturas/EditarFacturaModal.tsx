@@ -10,6 +10,7 @@ import { MontoInput } from '@/components/ui/monto-input'
 import type { FacturaConRelaciones, PlanCuenta } from '@/lib/database.types'
 import { MONEDAS } from '@/lib/database.types'
 import {
+  advertenciasCdc,
   facturaAFormState,
   formStateAFacturaUpdate,
   ivaNoCierra,
@@ -138,6 +139,20 @@ export function EditarFacturaModal({
             </Select>
           </Field>
         </div>
+
+        <Field
+          label="CDC (factura electronica)"
+          warning={advertenciasCdc(form).join(' ') || undefined}
+          hint="44 digitos junto al codigo QR. Vacio si es una factura preimpresa."
+        >
+          <Input
+            value={form.cdc}
+            onChange={(e) => campo('cdc', e.target.value)}
+            inputMode="numeric"
+            className="tabular text-xs"
+            placeholder="0144 4444 …"
+          />
+        </Field>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-3">

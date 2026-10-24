@@ -13,7 +13,10 @@ empresas (estudio contable)      ← el limite de aislamiento
   ├── usuarios
   └── contribuyentes             ← los clientes del estudio
         ├── plan_cuentas         ← categorizacion jerarquica (cuenta, denominacion, nivel, etc.)
-        └── facturas ── factura_detalles
+        └── facturas
+              ├── factura_detalles   ← lineas de la factura
+              ├── notas_credito      ← reducen la factura (se leen con IA, como ella)
+              └── pagos_factura      ← pagos (compra) o cobros (venta), con comprobante
 ```
 
 Un usuario **solo ve datos de su empresa**. Eso no depende del frontend: lo
